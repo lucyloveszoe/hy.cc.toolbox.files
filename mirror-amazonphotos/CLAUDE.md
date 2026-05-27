@@ -1,6 +1,50 @@
 # 子项目：Mirror Amazon Photos to Local with Albums
 
+## Status (2026-05-27)
+
+**Photo enumeration: ✅ WORKING**
+- 65,428 photos enumerated successfully
+- Client-side MIME type filtering
+- Month filtering tested and working
+
+**Photo downloads: ❌ BLOCKED**
+- `tempLink` download URL extraction failing
+- All 401 Unauthorized on CDN downloads
+- Debugging in progress — see progress.md
+
 ## How to Run
+
+### macOS / Linux
+
+```bash
+# Activate venv first (always)
+cd mirror-amazonphotos
+source venv/bin/activate
+
+# One-time login — opens visible browser, saves session.json
+python cloner.py --save-session
+
+# Dry run — preview what would be downloaded, no files written
+python cloner.py --mirror-root /tmp/mirror --dry-run
+
+# Full photo + album sync (CURRENTLY: enumerates only, downloads failing)
+python cloner.py --mirror-root /tmp/mirror
+
+# Full video sync
+python videos_cloner.py --mirror-root /tmp/mirror
+
+# Filter by month (YYYY-MM) — partial sync, no deletion of other months
+python cloner.py --mirror-root /tmp/mirror --month 2026-05
+python videos_cloner.py --mirror-root /tmp/mirror --month 2024-06
+
+# Use a non-default session file
+python cloner.py --mirror-root /tmp/mirror --session-file /path/to/session.json
+
+# Browse local mirror (no internet needed)
+python viewer.py --mirror-root /tmp/mirror
+```
+
+### Windows
 
 ```powershell
 # Activate venv first (always)

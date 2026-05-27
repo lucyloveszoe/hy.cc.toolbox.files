@@ -1,7 +1,45 @@
 # mirror-amazonphotos — Development Progress
 
-**Last updated: 2026-05-26**
-**Status: Built — not yet tested against live Amazon Photos account.**
+**Last updated: 2026-05-27**
+**Status: Photo enumeration WORKING ✅ | Download URLs broken ❌ | Needs tempLink fix**
+
+---
+
+## Current Checkpoint (2026-05-27)
+
+### ✅ What's Working
+1. **Photo enumeration** — Fixed `asset=IMAGE` filter issue
+   - Switched from unreliable server-side `asset=` param to **client-side MIME type filtering**
+   - Successfully enumerated **65,428 photos** across 330 API pages
+   - Performance: ~2-3 min for full enumeration
+   - Month filtering (`--month 2026-05`) correctly filters enumerated results
+
+2. **Album sync** — All 346 albums synced to JSON format
+   - Album definitions created with photo memberships
+   - Month filtering applies to album contents correctly
+
+3. **macOS compatibility** — Verified and working
+   - Fixed shell references (`~` → `$HOME`, `bash` → `sh`)
+   - Python 3.14 + all deps installed
+   - Playwright + Chromium browser working
+
+### ❌ What's Broken
+1. **Download URLs** — `tempLink` not being extracted correctly
+   - `GET /nodes/{id}?tempLink=true` returns HTTP 200
+   - But `tempLink` field missing from response or in unexpected location
+   - All download attempts fail with **401 Unauthorized** on CDN
+   - ~27+ files attempted, 100% failure rate
+
+2. **Root cause** — `get_download_url()` can't find tempLink
+   - Response body structure unknown (not logged yet)
+   - Added debugging to log response keys when tempLink missing
+   - Need to run test_download.py to see actual response structure
+
+### Next Steps
+1. Run `test_download.py` to debug single photo download URL
+2. Fix `get_download_url()` once we see response structure
+3. Re-test full sync with actual photo downloads
+4. Test video download URLs separately
 
 ---
 

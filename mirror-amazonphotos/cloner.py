@@ -124,6 +124,7 @@ def sync_albums(
     albums_dir: Path,
     pics_dir: Path,
     dry_run: bool,
+    month_filter: Optional[str] = None,
 ) -> None:
     """
     Mirror all Amazon Photos albums as local JSON files in albums_dir.
@@ -131,6 +132,9 @@ def sync_albums(
     Each JSON file contains the album name, ID, and a list of photos with their
     local file paths — so the viewer can reconstruct albums without an internet connection.
     Stale JSON files (albums deleted from cloud) are removed.
+
+    month_filter: 'YYYY-MM' string — when set, only photos from that month are
+    included in the album JSONs. Albums themselves are always synced.
     """
     log.info("▶ Enumerating albums from Amazon Photos...")
     albums = client.list_albums()
@@ -148,7 +152,12 @@ def sync_albums(
         cloud_album_names.add(safe_name)
 
         children = client.list_album_children(album_id)
-        log.info("  Album '%s': %d photos", album_name, len(children))
+
+        if month_filter:
+            children = [c for c in children if _node_month(c) == month_filter]
+            log.debug("  Album '%s': after --month filter: %d photos", album_name, len(children))
+        else:
+            log.info("  Album '%s': %d photos", album_name, len(children))
 
         photo_entries = []
         for child in children:
@@ -273,7 +282,8 @@ def main() -> None:
     try:
         cloud_photo_ids = sync_photos(client, conn, pics_dir,
                                       dry_run=args.dry_run, month_filter=args.month)
-        sync_albums(client, conn, albums_dir, pics_dir, dry_run=args.dry_run)
+        sync_albums(client, conn, albums_dir, pics_dir, dry_run=args.dry_run,
+                    month_filter=args.month)
         log.info("✓ Done")
     finally:
         client.close()

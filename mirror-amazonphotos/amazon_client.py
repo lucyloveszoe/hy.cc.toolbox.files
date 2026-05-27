@@ -76,9 +76,6 @@ class AmazonPhotosClient:
         self._auth_headers: dict = {}
         self._native_api_headers: dict = {}
 
-        if dry_run:
-            return
-
         try:
             from playwright.sync_api import sync_playwright
         except ImportError:
@@ -198,14 +195,20 @@ class AmazonPhotosClient:
         """
         Return all file nodes of the given type. Handles pagination automatically.
         asset_type: "IMAGE" for photos, "VIDEO" for videos.
+        Fetches all FILE kind nodes, then filters client-side by MIME type.
         """
         all_nodes: list[dict] = []
         start_token: str | None = None
         page_num = 0
 
+        # Determine MIME prefix for filtering
+        mime_prefix = "image/" if asset_type == "IMAGE" else "video/"
+
         while True:
+            # Get all FILE nodes without asset/MIME filter; filter client-side
+            filters = quote("kind:FILE")
             url = (f"{self._api_base}/nodes?ContentType=JSON&resourceVersion=V2"
-                   f"&asset={asset_type}&limit={limit}&tempLink=false")
+                   f"&filters={filters}&limit={limit}&tempLink=false")
             if start_token:
                 url += f"&startToken={quote(start_token)}"
 
@@ -218,10 +221,16 @@ class AmazonPhotosClient:
             body = result.get("data", {})
             items = body.get("data", []) if isinstance(body, dict) else []
             batch = items if isinstance(items, list) else []
-            all_nodes.extend(batch)
+
+            # Filter client-side by MIME type
+            filtered = [
+                item for item in batch
+                if (item.get("contentProperties", {}).get("contentType", "").startswith(mime_prefix))
+            ]
+            all_nodes.extend(filtered)
             page_num += 1
-            log.info("list_nodes(%s): page %d — %d items (total: %d)",
-                     asset_type, page_num, len(batch), len(all_nodes))
+            log.info("list_nodes(%s): page %d — %d items (filtered: %d, total: %d)",
+                     asset_type, page_num, len(batch), len(filtered), len(all_nodes))
 
             start_token = body.get("nextToken") if isinstance(body, dict) else None
             if not start_token:
@@ -263,8 +272,9 @@ class AmazonPhotosClient:
         start_token: str | None = None
 
         while True:
+            # Get all children without filter; filter client-side for image MIME types
             url = (f"{self._api_base}/nodes/{album_id}/children?ContentType=JSON"
-                   f"&resourceVersion=V2&asset=IMAGE&limit={limit}")
+                   f"&resourceVersion=V2&limit={limit}")
             if start_token:
                 url += f"&startToken={quote(start_token)}"
 
@@ -275,12 +285,21 @@ class AmazonPhotosClient:
 
             body = result.get("data", {})
             items = body.get("data", []) if isinstance(body, dict) else []
-            all_children.extend(items if isinstance(items, list) else [])
+            batch = items if isinstance(items, list) else []
+
+            # Filter client-side to image types only
+            image_items = [
+                item for item in batch
+                if (item.get("contentProperties", {}).get("contentType", "").startswith("image/"))
+            ]
+            all_children.extend(image_items)
 
             start_token = body.get("nextToken") if isinstance(body, dict) else None
             if not start_token:
                 break
 
+        log.debug("list_album_children(%s): fetched %d items, %d are images",
+                  album_id, len(batch), len(image_items))
         return all_children
 
     # ── Download ──────────────────────────────────────────────────────────────
@@ -296,8 +315,29 @@ class AmazonPhotosClient:
         if result["status"] != 200:
             log.error("get_download_url(%s) failed: HTTP %s", node_id, result["status"])
             return None
+
         body = result.get("data", {})
-        return body.get("tempLink") if isinstance(body, dict) else None
+        if not isinstance(body, dict):
+            log.error("get_download_url(%s): response not a dict: %s", node_id, type(body))
+            return None
+
+        # Try multiple possible field names for the download URL
+        temp_url = body.get("tempLink")
+        if temp_url:
+            log.debug("get_download_url(%s): found tempLink", node_id)
+            return temp_url
+
+        # Amazon might return it under a different field name
+        if "contentProperties" in body and isinstance(body["contentProperties"], dict):
+            cp = body["contentProperties"]
+            if "url" in cp:
+                log.debug("get_download_url(%s): using contentProperties.url", node_id)
+                return cp["url"]
+
+        # Log full response for debugging
+        log.warning("get_download_url(%s): no tempLink found. Response keys: %s",
+                    node_id, list(body.keys()) if isinstance(body, dict) else type(body))
+        return None
 
     def download_node(self, node: dict, dest_path: Path) -> bool:
         """
