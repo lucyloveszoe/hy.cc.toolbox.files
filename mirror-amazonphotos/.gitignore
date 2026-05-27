@@ -1,0 +1,5 @@
+venv/
+session.json
+*.pyc
+__pycache__/
+mirror.db

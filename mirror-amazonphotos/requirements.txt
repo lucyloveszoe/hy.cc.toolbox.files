@@ -1,0 +1,5 @@
+playwright
+tqdm
+pillow
+pillow-heif
+requests
