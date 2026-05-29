@@ -1,6 +1,6 @@
 # 子项目：Mirror Amazon Photos to Local with Albums
 
-## Status (2026-05-28)
+## Status (2026-05-29)
 
 **Photo enumeration: ✅ WORKING**
 - 65,428 photos enumerated successfully
@@ -9,14 +9,15 @@
 
 **Photo downloads: ✅ WORKING**
 - Uses `thumbnails-photos.amazon.com?viewBox=10000` (near-original quality)
-- `cdproxy` tempLink blocked ("No Auth Method Provided" — needs OAuth)
-- Full library synced to `/Users/superyu/Documents/data/amazon-mirror.2026.05.28`
+- Full library synced to `/Users/superyu/Documents/data/amazon-mirror`
 
 **Viewer: ✅ WORKING (virtual scroll)**
 - OOM fix applied — handles 50K+ photos without blowing up
 - Only visible rows rendered; LRU thumbnail cache capped at 400 entries
 
-**Videos: ⏳ NOT YET TESTED**
+**Videos: ✅ WORKING**
+- 530 videos enumerated; cdproxy download verified (original quality, exact byte match)
+- Auth: Python requests + all Amazon cookies (incl. HttpOnly `at-main`) + `x-amzn-sessionid`
 
 ## How to Run
 
