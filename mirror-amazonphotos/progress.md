@@ -31,7 +31,8 @@
    - Scans all pages (videos are sparse — ~1-2 per page on average)
 
 6. **Video downloads** — cdproxy, original quality
-   - Download verified: 8,006,420 bytes downloaded = 8,006,420 bytes expected (exact match)
+   - Single-file verify: 8,006,420 bytes downloaded = 8,006,420 bytes expected (exact match)
+   - Batch verify: 147 of 527 videos downloaded successfully before manual abort — zero errors
    - See "Video download — cdproxy auth" section below for the full investigation
 
 ### ⚠️ Known Limitation — Photo Download Quality
@@ -124,8 +125,9 @@
 ### `--month YYYY-MM` filter
 - Filters the already-fetched node list by extracting the `YYYY-MM` prefix from each node's date
 - Photos: prefers exif shoot date; falls back to upload date
-- Videos: uses upload date only (no exif for videos)
+- Videos: uses upload date (`createdDate`) only — no exif for videos
 - **Critical**: when `--month` is active, the deletion step is skipped — a partial sync must never delete files from other months
+- **Gotcha**: `--month` for videos matches the Amazon *upload* date, not the video's original recording date. A video shot in 2007 but uploaded in 2019 will appear under `--month 2019-12`, not `--month 2007-05`. Confirmed: `--month 2007-05` returned 0 results for a library with 2007-era videos all uploaded in 2019.
 
 ### Local album format — JSON files in `albums/`
 - One `{album_name}.json` per album

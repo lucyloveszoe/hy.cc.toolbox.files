@@ -3,3 +3,4 @@ tqdm
 pillow
 pillow-heif
 requests
+requests-aws4auth

@@ -38,8 +38,7 @@ python cloner.py --mirror-root /tmp/mirror --dry-run
 python cloner.py --mirror-root /Users/superyu/Documents/data/amazon-mirror
 
 # Full video sync
-python videos_cloner.py --mirror-root /Users/superyu/Documents/data/amazon-mirror.vid
-
+python videos_cloner.py --mirror-root /Users/superyu/Documents/data/amazon-mirror
 
 # Filter by month (YYYY-MM) — partial sync, no deletion of other months
 python cloner.py --mirror-root /tmp/mirror --month 2026-05
@@ -69,7 +68,7 @@ python cloner.py --mirror-root C:\tmp\mirror --dry-run
 python cloner.py --mirror-root C:\tmp\mirror
 
 # Full video sync
-python videos_cloner.py --mirror-root amazon-mirror.vid
+python videos_cloner.py --mirror-root C:\Users\yourname\amazon-mirror
 
 # Filter by month (YYYY-MM) — partial sync, no deletion of other months
 python cloner.py --mirror-root C:\tmp\mirror --month 2024-06
@@ -114,7 +113,7 @@ mirror-amazonphotos/
 ├── cloner.py            # amazon.photos.cloner CLI
 ├── videos_cloner.py     # amazon.videos.cloner CLI
 ├── viewer.py            # amazon.photos.viewer GUI (tkinter)
-├── requirements.txt     # playwright, tqdm, pillow, pillow-heif, requests
+├── requirements.txt     # playwright, tqdm, pillow, pillow-heif, requests, requests-aws4auth
 ├── .gitignore
 ├── venv/                # Python 3.13 venv
 ├── CLAUDE.md            # This file — spec, workflow, usage
