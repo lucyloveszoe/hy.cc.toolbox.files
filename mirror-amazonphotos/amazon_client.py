@@ -75,6 +75,7 @@ class AmazonPhotosClient:
         self._api_base = self.BOOTSTRAP
         self._auth_headers: dict = {}
         self._native_api_headers: dict = {}
+        self._download_cookies: dict = {}
 
         try:
             from playwright.sync_api import sync_playwright
@@ -153,6 +154,15 @@ class AmazonPhotosClient:
             log.info("Amazon Photos: auth headers ready: %s", list(self._auth_headers))
         else:
             log.warning("Amazon Photos: no native headers captured — API calls may fail auth")
+
+        # Extract amazon.com cookies for CDN downloads (thumbnails-photos.amazon.com needs them)
+        raw_cookies = self._page.context.cookies()
+        self._download_cookies = {
+            c["name"]: c["value"]
+            for c in raw_cookies
+            if "amazon" in c.get("domain", "")
+        }
+        log.info("Amazon Photos: %d download cookies cached", len(self._download_cookies))
 
     # ── Core browser fetch ────────────────────────────────────────────────────
 
@@ -341,19 +351,45 @@ class AmazonPhotosClient:
 
     def download_node(self, node: dict, dest_path: Path) -> bool:
         """
-        Download a file node to dest_path using its tempLink pre-signed URL.
-        Sets file mtime to the photo's original creation date when available.
+        Download a photo or video node to dest_path.
+
+        Photos: thumbnails-photos.amazon.com CDN — no OAuth needed, near-original quality.
+        Videos: cdproxy (content-na.drive.amazonaws.com) — requires tempLink + Amazon
+                cookies + x-amzn-sessionid. Python requests sends the HttpOnly at-main
+                cookie that cross-origin browser fetch cannot include.
         """
         node_id = node["id"]
         name = node.get("name", node_id)
+        content_type = node.get("contentProperties", {}).get("contentType", "")
 
-        temp_url = self.get_download_url(node_id)
-        if not temp_url:
-            log.error("No download URL for %s — skipping", name)
-            return False
+        if content_type.startswith("video/"):
+            # Fetch the cdproxy tempLink for this video node
+            tl_url = (f"{self._api_base}/nodes/{node_id}"
+                      f"?ContentType=JSON&resourceVersion=V2&tempLink=true")
+            tl_result = self._eval_fetch("GET", tl_url)
+            dl_url = (tl_result.get("data") or {}).get("tempLink")
+            if not dl_url:
+                log.error("No tempLink for video %s (HTTP %s)", name, tl_result.get("status"))
+                return False
+            cdproxy_headers = {
+                "x-amzn-sessionid": self._auth_headers.get("x-amzn-sessionid", ""),
+                "x-amz-clouddrive-appid": self._auth_headers.get("x-amz-clouddrive-appid", ""),
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/124.0.0.0 Safari/537.36"
+                ),
+            }
+            req_kwargs = dict(headers=cdproxy_headers, cookies=self._download_cookies,
+                              stream=True, timeout=300)
+        else:
+            owner_id = node.get("ownerId", "")
+            dl_url = (f"https://thumbnails-photos.amazon.com/v1/thumbnail/{node_id}"
+                      f"?viewBox=10000&ownerId={owner_id}")
+            req_kwargs = dict(cookies=self._download_cookies, stream=True, timeout=120)
 
         try:
-            r = _requests.get(temp_url, stream=True, timeout=120)
+            r = _requests.get(dl_url, **req_kwargs)
             r.raise_for_status()
             dest_path.parent.mkdir(parents=True, exist_ok=True)
             with open(dest_path, "wb") as f:
@@ -365,7 +401,7 @@ class AmazonPhotosClient:
                 dest_path.unlink()
             return False
 
-        # Preserve the photo's original shoot date as the file mtime
+        # Preserve the original shoot/upload date as the file mtime
         cp = node.get("contentProperties", {}) or {}
         date_str = (
             (cp.get("image") or {}).get("dateTimeOriginal")

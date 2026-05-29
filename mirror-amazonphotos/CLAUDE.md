@@ -1,16 +1,22 @@
 # 子项目：Mirror Amazon Photos to Local with Albums
 
-## Status (2026-05-27)
+## Status (2026-05-28)
 
 **Photo enumeration: ✅ WORKING**
 - 65,428 photos enumerated successfully
 - Client-side MIME type filtering
 - Month filtering tested and working
 
-**Photo downloads: ❌ BLOCKED**
-- `tempLink` download URL extraction failing
-- All 401 Unauthorized on CDN downloads
-- Debugging in progress — see progress.md
+**Photo downloads: ✅ WORKING**
+- Uses `thumbnails-photos.amazon.com?viewBox=10000` (near-original quality)
+- `cdproxy` tempLink blocked ("No Auth Method Provided" — needs OAuth)
+- Full library synced to `/Users/superyu/Documents/data/amazon-mirror.2026.05.28`
+
+**Viewer: ✅ WORKING (virtual scroll)**
+- OOM fix applied — handles 50K+ photos without blowing up
+- Only visible rows rendered; LRU thumbnail cache capped at 400 entries
+
+**Videos: ⏳ NOT YET TESTED**
 
 ## How to Run
 
@@ -27,11 +33,12 @@ python cloner.py --save-session
 # Dry run — preview what would be downloaded, no files written
 python cloner.py --mirror-root /tmp/mirror --dry-run
 
-# Full photo + album sync (CURRENTLY: enumerates only, downloads failing)
-python cloner.py --mirror-root /tmp/mirror
+# Full photo + album sync
+python cloner.py --mirror-root /Users/superyu/Documents/data/amazon-mirror
 
 # Full video sync
-python videos_cloner.py --mirror-root /tmp/mirror
+python videos_cloner.py --mirror-root /Users/superyu/Documents/data/amazon-mirror.vid
+
 
 # Filter by month (YYYY-MM) — partial sync, no deletion of other months
 python cloner.py --mirror-root /tmp/mirror --month 2026-05
@@ -61,7 +68,7 @@ python cloner.py --mirror-root C:\tmp\mirror --dry-run
 python cloner.py --mirror-root C:\tmp\mirror
 
 # Full video sync
-python videos_cloner.py --mirror-root C:\tmp\mirror
+python videos_cloner.py --mirror-root amazon-mirror.vid
 
 # Filter by month (YYYY-MM) — partial sync, no deletion of other months
 python cloner.py --mirror-root C:\tmp\mirror --month 2024-06

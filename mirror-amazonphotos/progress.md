@@ -1,56 +1,53 @@
 # mirror-amazonphotos — Development Progress
 
-**Last updated: 2026-05-27**
-**Status: Photo enumeration WORKING ✅ | Download URLs broken ❌ | Needs tempLink fix**
+**Last updated: 2026-05-28**
+**Status: Photos ✅ | Albums ✅ | Viewer ✅ (virtual scroll) | Videos ⏳ not yet tested**
 
 ---
 
-## Current Checkpoint (2026-05-27)
+## Current Checkpoint (2026-05-28)
 
 ### ✅ What's Working
-1. **Photo enumeration** — Fixed `asset=IMAGE` filter issue
-   - Switched from unreliable server-side `asset=` param to **client-side MIME type filtering**
-   - Successfully enumerated **65,428 photos** across 330 API pages
-   - Performance: ~2-3 min for full enumeration
-   - Month filtering (`--month 2026-05`) correctly filters enumerated results
+1. **Photo enumeration** — client-side MIME type filtering
+   - 65,428 photos across 330 API pages, ~2-3 min for full enumeration
+   - Month filtering (`--month YYYY-MM`) works correctly
 
-2. **Album sync** — All 346 albums synced to JSON format
-   - Album definitions created with photo memberships
-   - Month filtering applies to album contents correctly
+2. **Photo downloads** — `thumbnails-photos.amazon.com` CDN
+   - Full library synced to `/Users/superyu/Documents/data/amazon-mirror.2026.05.28`
+   - Near-original quality: viewBox=10000 covers full pixel dimensions, slight JPEG recompression (1.86MB vs 2.3MB tested)
+   - File mtimes set to EXIF dateTimeOriginal, falling back to createdDate
+   - `--month 2026-05` tested: 192 photos, ~5 min, zero errors
 
-3. **macOS compatibility** — Verified and working
-   - Fixed shell references (`~` → `$HOME`, `bash` → `sh`)
-   - Python 3.14 + all deps installed
-   - Playwright + Chromium browser working
+3. **Album sync** — 346 albums synced to JSON with local path links
 
-### ❌ What's Broken
-1. **Download URLs** — `tempLink` not being extracted correctly
-   - `GET /nodes/{id}?tempLink=true` returns HTTP 200
-   - But `tempLink` field missing from response or in unexpected location
-   - All download attempts fail with **401 Unauthorized** on CDN
-   - ~27+ files attempted, 100% failure rate
+4. **Viewer** — virtual-scroll tkinter GUI, handles 50K+ photos without OOM
+   - Only visible rows have widgets in memory (BUFFER_ROWS=3 above/below viewport)
+   - LRU thumbnail cache capped at 400 entries
+   - Persistent background worker thread + queue; stale items discarded on album switch
+   - 80ms scroll debounce; scrollbar drag and mousewheel both trigger re-render
+   - Full-size popup, album sidebar, sort by name/date — all working
 
-2. **Root cause** — `get_download_url()` can't find tempLink
-   - Response body structure unknown (not logged yet)
-   - Added debugging to log response keys when tempLink missing
-   - Need to run test_download.py to see actual response structure
+### ⚠️ Known Limitation — Download Quality
+- `cdproxy` tempLink returns `"No Auth Method Provided"` — requires OAuth tokens not available from the browser session approach
+- Workaround: `thumbnails-photos.amazon.com?viewBox=10000` — same pixel dimensions, JPEG recompressed (~80% file size of original)
+- True original bytes (HEIC, raw) not achievable without OAuth
 
 ### Next Steps
-1. Run `test_download.py` to debug single photo download URL
-2. Fix `get_download_url()` once we see response structure
-3. Re-test full sync with actual photo downloads
-4. Test video download URLs separately
+1. Test video downloads (`videos_cloner.py`) — thumbnail CDN may not serve videos
+2. Test full re-sync (idempotency) — re-run cloner on existing mirror, verify skip + deletion logic
+3. Monitor for session expiry on long runs (65K photos takes ~27 hours at 1.5s/photo)
 
 ---
 
 ## What's Built
 
-- `amazon_client.py` — Playwright client with `list_nodes`, `list_albums`, `list_album_children`, `get_download_url`, `download_node` — **code complete**
-- `db.py` — SQLite schema + helpers (photos, albums, album_photos, videos) — **unit tested, passing**
-- `cloner.py` — photos + albums sync CLI with `--month` filter — **code complete**
-- `videos_cloner.py` — videos sync CLI with `--month` filter — **code complete**
-- `viewer.py` — tkinter GUI, album sidebar, lazy thumbnail loading, full-size popup — **code complete**
-- venv set up with Python 3.13, all deps installed (playwright, pillow, pillow-heif, requests, tqdm)
+- `amazon_client.py` — Playwright client: `list_nodes`, `list_albums`, `list_album_children`, `get_download_url`, `download_node` — **production tested**
+- `db.py` — SQLite schema + helpers (photos, albums, album_photos, videos) — **unit tested**
+- `cloner.py` — photos + albums sync CLI with `--month` filter — **production tested (50K+ photos)**
+- `videos_cloner.py` — videos sync CLI with `--month` filter — **code complete, not yet tested**
+- `viewer.py` — virtual-scroll tkinter GUI, LRU cache, album sidebar, full-size popup — **OOM fix applied 2026-05-28**
+- `test_download.py` — single-photo download debug tool (no full enumeration)
+- venv: Python 3.13, deps: playwright, pillow, pillow-heif, requests, tqdm
 
 ---
 
@@ -73,10 +70,13 @@
 - Alternative: `filters=kind:FILE AND contentProperties.contentType:image%2F*` — not used because wildcard support in filters is uncertain
 - Pagination: loop on `nextToken` from response body until absent
 
-### Download — `tempLink=true` → `requests.get()`
-- `GET /nodes/{id}?resourceVersion=V2&ContentType=JSON&tempLink=true` returns a `tempLink` pre-signed URL
-- Pre-signed URL is self-contained (auth embedded in URL) — downloaded with plain `requests.get()`, no browser needed
-- **RISK**: `tempLink` field not yet verified against a live account. If absent, `download_node` logs an error per file and skips it safely. Re-run after investigating.
+### Download — `thumbnails-photos.amazon.com` CDN
+- `tempLink` IS present in the `/nodes/{id}?tempLink=true` response, but the URL (`cdproxy/nodes/{id}`) requires OAuth — returns "No Auth Method Provided" regardless of how it's called (requests, browser fetch, browser goto)
+- Workaround: `thumbnails-photos.amazon.com/v1/thumbnail/{nodeId}?viewBox=10000&ownerId={ownerId}`
+  - No OAuth needed — authenticated via Amazon session cookies extracted from browser context at startup
+  - `viewBox=10000` exceeds all photo dimensions → serves full pixel resolution, JPEG recompressed
+  - Downloaded with `requests.get(cookies=self._download_cookies)` — no browser overhead per file
+- `_download_cookies` extracted once in `__init__` from `page.context.cookies()`, reused for all downloads
 
 ### Album children — `GET /nodes/{albumId}/children`
 - Uses `asset=IMAGE` to filter to photo nodes only
@@ -99,12 +99,14 @@
 - Viewer reads these JSON files directly — no DB or internet connection needed at view time
 - Album names sanitized for filesystem: `re.sub(r'[<>:"/\\|?*]', "_", name)`
 
-### Viewer — tkinter + PIL
-- Reads directly from `pics/` and `albums/*.json` — no Amazon connection at view time
-- Thumbnails loaded lazily in a background thread; `root.after(0, ...)` used to update tk widgets from thread
-- `threading.Event` cancels in-flight thumbnail loading when the user switches albums
-- `pillow-heif` registered as optional opener for HEIC files
-- Thumbnail size: 160×130 px. Full-size view opens in a `Toplevel` window scaled to screen
+### Viewer — tkinter + PIL (virtual scroll, OOM-safe)
+- Reads directly from `pics/` and `albums/*.json` — no internet at view time
+- **Virtual scroll**: cells placed directly on canvas as window items at computed (x, y); only rows within BUFFER_ROWS=3 of viewport exist as widgets. 50K photos → ~35 widgets in memory at a time.
+- LRU thumbnail cache (`_LRUCache`, max 400): evicts oldest when full; `ImageTk.PhotoImage` kept alive by attaching to cell widget as `cell._photo`
+- Persistent daemon worker thread + `queue.Queue`; items carry `stop_event` ref — stale items from previous album view are discarded, not processed
+- 80ms debounce on scroll events via `root.after_cancel` / `root.after`
+- Scrollbar drag wired via wrapper that calls `canvas.yview()` then `_schedule_render()`
+- Initial render deferred 120ms with `root.after` to let window reach final size before first `winfo_height()` call
 
 ### SQLite (`mirror.db`)
 - Tracks: photos (node_id, name, size, md5, exif_date, local_path), albums, album_photos join table, videos
@@ -150,20 +152,25 @@ Amazon Photos API calls must originate from inside the real browser session. Nat
 
 ---
 
-## Known Risks / Not Yet Verified
+## Known Risks / Open Questions
 
-### `tempLink=true` download URL
-- **Risk**: Not yet confirmed that `tempLink` field appears in the GET /nodes/{id} response
-- **Symptom if missing**: `download_node` logs "No download URL for {name} — skipping" per file, nothing downloaded
-- **Fix options if tempLink absent**:
-  1. Try `GET /nodes/{id}/children` pattern (for folder-like nodes)
-  2. Try browser-side fetch returning base64: `page.evaluate(fetch(url) → arrayBuffer → btoa)` — works for photos, not practical for large videos
-  3. Check if `contentProperties.url` or similar field exists in the node response
+### Video downloads
+- `videos_cloner.py` not yet tested end-to-end
+- `thumbnails-photos.amazon.com` likely does not serve video files — may need a different download approach
+- If videos also need cdproxy and hit the same OAuth wall, video download is blocked until OAuth is solved
 
-### `asset=IMAGE` / `asset=VIDEO` parameter
-- **Risk**: Not confirmed this param works for the Amazon Drive V2 endpoint (may be Amazon Photos-specific)
-- **Symptom if not working**: `list_nodes` returns 0 items or HTTP error
-- **Fallback**: use `filters=kind:FILE` and client-side filter by `contentProperties.contentType`
+### Session expiry on long runs
+- Full sync of 65K photos at 1.5s/photo ≈ 27 hours
+- Amazon session cookies may expire mid-run (typical session lifetime: 12–24h)
+- Symptom: downloads start returning 401 partway through
+- Fix needed: detect 401 on download, refresh cookies from browser context, retry
+
+### `asset=IMAGE` / `asset=VIDEO` parameter — RESOLVED
+- Was a risk; now confirmed working via client-side MIME filter fallback (`filters=kind:FILE` + filter by `contentProperties.contentType`)
+
+### cdproxy OAuth — blocked
+- `content-na.drive.amazonaws.com/cdproxy/nodes/{id}` always returns "No Auth Method Provided"
+- Would need to extract OAuth access token from the React app's token storage — not yet investigated
 
 ---
 
