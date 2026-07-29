@@ -1,0 +1,7 @@
+python local-dup-match-v2.py C:\tmp\files-list2\nas --prefix nas
+python local-dup-match-v2.py C:\tmp\files-list2\local --prefix local
+python local-dup-match-v2.py C:\tmp\files-list2\4tb --prefix 4tb
+
+python cross-dup-match-v2.py C:\tmp\files-list2\nas C:\tmp\files-list2\local --prefix nas2local
+
+python 4tb-prune-v2.py  C:\tmp\files-list2\local C:\tmp\files-list2\4tb --prefix 4tb2local-prune

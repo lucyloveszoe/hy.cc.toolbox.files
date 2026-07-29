@@ -1,5 +1,6 @@
 """dup_common.py — shared core for local-dup-match.py,
-local-dup-match-cross.py, and s3-dup-match-cross.py.
+local-dup-match-cross.py, s3-dup-match-cross.py, and
+local-folder-win-dup-check.py.
 
 Two catalog formats are supported:
 
@@ -216,6 +217,29 @@ def parse_s3_catalog(
     )
 
 
+def load_records_from_catalog_file(
+    file: Path,
+    side: str,
+    include_system: bool,
+    include_zero: bool,
+    parse_fn: ParseFn = parse_linux_catalog,
+) -> list[Record]:
+    """Parse one catalog file, return its filtered Record list."""
+    recs, parsed, skipped = parse_fn(file, side)
+    kept_records: list[Record] = []
+    for r in recs:
+        if not include_zero and r.size == 0:
+            continue
+        if not include_system and is_system_file(r.name):
+            continue
+        kept_records.append(r)
+    print(
+        f"  [{side}] {file.name}: parsed={parsed} kept={len(kept_records)} "
+        f"unparseable={skipped}"
+    )
+    return kept_records
+
+
 def load_records(
     folder: Path,
     glob: str,
@@ -238,20 +262,45 @@ def load_records(
 
     all_records: list[Record] = []
     for cat in catalogs:
-        recs, parsed, skipped = parse_fn(cat, side)
-        kept = 0
-        for r in recs:
-            if not include_zero and r.size == 0:
-                continue
-            if not include_system and is_system_file(r.name):
-                continue
-            all_records.append(r)
-            kept += 1
-        print(
-            f"  [{side}] {cat.name}: parsed={parsed} kept={kept} "
-            f"unparseable={skipped}"
+        all_records.extend(
+            load_records_from_catalog_file(
+                cat, side, include_system, include_zero, parse_fn
+            )
         )
     return all_records
+
+
+def load_records_from_filesystem(
+    folder: Path,
+    side: str,
+    include_system: bool,
+    include_zero: bool,
+) -> list[Record]:
+    """Recursively walk a real folder on disk and return filtered Records.
+
+    Unlike :func:`load_records`, this reads file sizes straight from the
+    filesystem (``Path.stat``) instead of parsing a catalog text dump.
+    ``source`` is set to the file's directory path relative to ``folder``
+    (``"(root)"`` for files directly inside it), since there is no catalog
+    filename to record.
+    """
+    records: list[Record] = []
+    for p in sorted(folder.rglob("*")):
+        if not p.is_file():
+            continue
+        try:
+            size = p.stat().st_size
+        except OSError:
+            continue
+        name = p.name
+        if not include_zero and size == 0:
+            continue
+        if not include_system and is_system_file(name):
+            continue
+        rel_dir = p.parent.relative_to(folder).as_posix()
+        source = "(root)" if rel_dir == "." else rel_dir
+        records.append(Record(side, source, size, str(p), name))
+    return records
 
 
 def find_exact_duplicates(
