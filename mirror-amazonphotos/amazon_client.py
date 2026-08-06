@@ -75,9 +75,7 @@ class AmazonPhotosClient:
         self._api_base = self.BOOTSTRAP
         self._auth_headers: dict = {}
         self._native_api_headers: dict = {}
-
-        if dry_run:
-            return
+        self._download_cookies: dict = {}
 
         try:
             from playwright.sync_api import sync_playwright
@@ -157,6 +155,15 @@ class AmazonPhotosClient:
         else:
             log.warning("Amazon Photos: no native headers captured — API calls may fail auth")
 
+        # Extract amazon.com cookies for CDN downloads (thumbnails-photos.amazon.com needs them)
+        raw_cookies = self._page.context.cookies()
+        self._download_cookies = {
+            c["name"]: c["value"]
+            for c in raw_cookies
+            if "amazon" in c.get("domain", "")
+        }
+        log.info("Amazon Photos: %d download cookies cached", len(self._download_cookies))
+
     # ── Core browser fetch ────────────────────────────────────────────────────
 
     def _eval_fetch(self, method: str, url: str, body: dict | None = None) -> dict:
@@ -198,14 +205,20 @@ class AmazonPhotosClient:
         """
         Return all file nodes of the given type. Handles pagination automatically.
         asset_type: "IMAGE" for photos, "VIDEO" for videos.
+        Fetches all FILE kind nodes, then filters client-side by MIME type.
         """
         all_nodes: list[dict] = []
         start_token: str | None = None
         page_num = 0
 
+        # Determine MIME prefix for filtering
+        mime_prefix = "image/" if asset_type == "IMAGE" else "video/"
+
         while True:
+            # Get all FILE nodes without asset/MIME filter; filter client-side
+            filters = quote("kind:FILE")
             url = (f"{self._api_base}/nodes?ContentType=JSON&resourceVersion=V2"
-                   f"&asset={asset_type}&limit={limit}&tempLink=false")
+                   f"&filters={filters}&limit={limit}&tempLink=false")
             if start_token:
                 url += f"&startToken={quote(start_token)}"
 
@@ -218,10 +231,16 @@ class AmazonPhotosClient:
             body = result.get("data", {})
             items = body.get("data", []) if isinstance(body, dict) else []
             batch = items if isinstance(items, list) else []
-            all_nodes.extend(batch)
+
+            # Filter client-side by MIME type
+            filtered = [
+                item for item in batch
+                if (item.get("contentProperties", {}).get("contentType", "").startswith(mime_prefix))
+            ]
+            all_nodes.extend(filtered)
             page_num += 1
-            log.info("list_nodes(%s): page %d — %d items (total: %d)",
-                     asset_type, page_num, len(batch), len(all_nodes))
+            log.info("list_nodes(%s): page %d — %d items (filtered: %d, total: %d)",
+                     asset_type, page_num, len(batch), len(filtered), len(all_nodes))
 
             start_token = body.get("nextToken") if isinstance(body, dict) else None
             if not start_token:
@@ -263,8 +282,9 @@ class AmazonPhotosClient:
         start_token: str | None = None
 
         while True:
+            # Get all children without filter; filter client-side for image MIME types
             url = (f"{self._api_base}/nodes/{album_id}/children?ContentType=JSON"
-                   f"&resourceVersion=V2&asset=IMAGE&limit={limit}")
+                   f"&resourceVersion=V2&limit={limit}")
             if start_token:
                 url += f"&startToken={quote(start_token)}"
 
@@ -275,12 +295,21 @@ class AmazonPhotosClient:
 
             body = result.get("data", {})
             items = body.get("data", []) if isinstance(body, dict) else []
-            all_children.extend(items if isinstance(items, list) else [])
+            batch = items if isinstance(items, list) else []
+
+            # Filter client-side to image types only
+            image_items = [
+                item for item in batch
+                if (item.get("contentProperties", {}).get("contentType", "").startswith("image/"))
+            ]
+            all_children.extend(image_items)
 
             start_token = body.get("nextToken") if isinstance(body, dict) else None
             if not start_token:
                 break
 
+        log.debug("list_album_children(%s): fetched %d items, %d are images",
+                  album_id, len(batch), len(image_items))
         return all_children
 
     # ── Download ──────────────────────────────────────────────────────────────
@@ -296,24 +325,71 @@ class AmazonPhotosClient:
         if result["status"] != 200:
             log.error("get_download_url(%s) failed: HTTP %s", node_id, result["status"])
             return None
+
         body = result.get("data", {})
-        return body.get("tempLink") if isinstance(body, dict) else None
+        if not isinstance(body, dict):
+            log.error("get_download_url(%s): response not a dict: %s", node_id, type(body))
+            return None
+
+        # Try multiple possible field names for the download URL
+        temp_url = body.get("tempLink")
+        if temp_url:
+            log.debug("get_download_url(%s): found tempLink", node_id)
+            return temp_url
+
+        # Amazon might return it under a different field name
+        if "contentProperties" in body and isinstance(body["contentProperties"], dict):
+            cp = body["contentProperties"]
+            if "url" in cp:
+                log.debug("get_download_url(%s): using contentProperties.url", node_id)
+                return cp["url"]
+
+        # Log full response for debugging
+        log.warning("get_download_url(%s): no tempLink found. Response keys: %s",
+                    node_id, list(body.keys()) if isinstance(body, dict) else type(body))
+        return None
 
     def download_node(self, node: dict, dest_path: Path) -> bool:
         """
-        Download a file node to dest_path using its tempLink pre-signed URL.
-        Sets file mtime to the photo's original creation date when available.
+        Download a photo or video node to dest_path.
+
+        Photos: thumbnails-photos.amazon.com CDN — no OAuth needed, near-original quality.
+        Videos: cdproxy (content-na.drive.amazonaws.com) — requires tempLink + Amazon
+                cookies + x-amzn-sessionid. Python requests sends the HttpOnly at-main
+                cookie that cross-origin browser fetch cannot include.
         """
         node_id = node["id"]
         name = node.get("name", node_id)
+        content_type = node.get("contentProperties", {}).get("contentType", "")
 
-        temp_url = self.get_download_url(node_id)
-        if not temp_url:
-            log.error("No download URL for %s — skipping", name)
-            return False
+        if content_type.startswith("video/"):
+            # Fetch the cdproxy tempLink for this video node
+            tl_url = (f"{self._api_base}/nodes/{node_id}"
+                      f"?ContentType=JSON&resourceVersion=V2&tempLink=true")
+            tl_result = self._eval_fetch("GET", tl_url)
+            dl_url = (tl_result.get("data") or {}).get("tempLink")
+            if not dl_url:
+                log.error("No tempLink for video %s (HTTP %s)", name, tl_result.get("status"))
+                return False
+            cdproxy_headers = {
+                "x-amzn-sessionid": self._auth_headers.get("x-amzn-sessionid", ""),
+                "x-amz-clouddrive-appid": self._auth_headers.get("x-amz-clouddrive-appid", ""),
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/124.0.0.0 Safari/537.36"
+                ),
+            }
+            req_kwargs = dict(headers=cdproxy_headers, cookies=self._download_cookies,
+                              stream=True, timeout=300)
+        else:
+            owner_id = node.get("ownerId", "")
+            dl_url = (f"https://thumbnails-photos.amazon.com/v1/thumbnail/{node_id}"
+                      f"?viewBox=10000&ownerId={owner_id}")
+            req_kwargs = dict(cookies=self._download_cookies, stream=True, timeout=120)
 
         try:
-            r = _requests.get(temp_url, stream=True, timeout=120)
+            r = _requests.get(dl_url, **req_kwargs)
             r.raise_for_status()
             dest_path.parent.mkdir(parents=True, exist_ok=True)
             with open(dest_path, "wb") as f:
@@ -325,7 +401,7 @@ class AmazonPhotosClient:
                 dest_path.unlink()
             return False
 
-        # Preserve the photo's original shoot date as the file mtime
+        # Preserve the original shoot/upload date as the file mtime
         cp = node.get("contentProperties", {}) or {}
         date_str = (
             (cp.get("image") or {}).get("dateTimeOriginal")

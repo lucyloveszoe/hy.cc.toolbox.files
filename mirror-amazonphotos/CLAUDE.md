@@ -1,6 +1,57 @@
 # 子项目：Mirror Amazon Photos to Local with Albums
 
+## Status (2026-05-29)
+
+**Photo enumeration: ✅ WORKING**
+- 65,428 photos enumerated successfully
+- Client-side MIME type filtering
+- Month filtering tested and working
+
+**Photo downloads: ✅ WORKING**
+- Uses `thumbnails-photos.amazon.com?viewBox=10000` (near-original quality)
+- Full library synced to `/Users/superyu/Documents/data/amazon-mirror`
+
+**Viewer: ✅ WORKING (virtual scroll)**
+- OOM fix applied — handles 50K+ photos without blowing up
+- Only visible rows rendered; LRU thumbnail cache capped at 400 entries
+
+**Videos: ✅ WORKING**
+- 530 videos enumerated; cdproxy download verified (original quality, exact byte match)
+- Auth: Python requests + all Amazon cookies (incl. HttpOnly `at-main`) + `x-amzn-sessionid`
+
 ## How to Run
+
+### macOS / Linux
+
+```bash
+# Activate venv first (always)
+cd mirror-amazonphotos
+source venv/bin/activate
+
+# One-time login — opens visible browser, saves session.json
+python cloner.py --save-session
+
+# Dry run — preview what would be downloaded, no files written
+python cloner.py --mirror-root /tmp/mirror --dry-run
+
+# Full photo + album sync
+python cloner.py --mirror-root /Users/superyu/Documents/data/amazon-mirror
+
+# Full video sync
+python videos_cloner.py --mirror-root /Users/superyu/Documents/data/amazon-mirror
+
+# Filter by month (YYYY-MM) — partial sync, no deletion of other months
+python cloner.py --mirror-root /tmp/mirror --month 2026-05
+python videos_cloner.py --mirror-root /tmp/mirror --month 2024-06
+
+# Use a non-default session file
+python cloner.py --mirror-root /tmp/mirror --session-file /path/to/session.json
+
+# Browse local mirror (no internet needed)
+python viewer.py --mirror-root /tmp/mirror
+```
+
+### Windows
 
 ```powershell
 # Activate venv first (always)
@@ -17,7 +68,7 @@ python cloner.py --mirror-root C:\tmp\mirror --dry-run
 python cloner.py --mirror-root C:\tmp\mirror
 
 # Full video sync
-python videos_cloner.py --mirror-root C:\tmp\mirror
+python videos_cloner.py --mirror-root C:\Users\yourname\amazon-mirror
 
 # Filter by month (YYYY-MM) — partial sync, no deletion of other months
 python cloner.py --mirror-root C:\tmp\mirror --month 2024-06
@@ -62,7 +113,7 @@ mirror-amazonphotos/
 ├── cloner.py            # amazon.photos.cloner CLI
 ├── videos_cloner.py     # amazon.videos.cloner CLI
 ├── viewer.py            # amazon.photos.viewer GUI (tkinter)
-├── requirements.txt     # playwright, tqdm, pillow, pillow-heif, requests
+├── requirements.txt     # playwright, tqdm, pillow, pillow-heif, requests, requests-aws4auth
 ├── .gitignore
 ├── venv/                # Python 3.13 venv
 ├── CLAUDE.md            # This file — spec, workflow, usage

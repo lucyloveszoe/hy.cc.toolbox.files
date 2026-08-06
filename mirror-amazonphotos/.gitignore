@@ -3,3 +3,4 @@ session.json
 *.pyc
 __pycache__/
 mirror.db
+.DS_Store
