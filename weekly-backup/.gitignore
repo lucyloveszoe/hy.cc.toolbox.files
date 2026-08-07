@@ -1,0 +1,7 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+credentail.txt
+backup_run.log
+.claude/
