@@ -1,0 +1,6 @@
+﻿category,file_count,total_size_gb
+4tb_pending (真正待处理，需复制到暂存区),8213,1206.6
+macbook_pending_upload (待上传到NAS),3071,390.82
+already_backed_up (4TB已在NAS，无需处理),2288,486.88
+suspected_renames (疑似改名/移动，待人工确认),84,82.57
+rejected_ledger_new_entries (本次新记录的淘汰文件),0,
