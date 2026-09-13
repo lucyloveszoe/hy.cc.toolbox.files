@@ -13,7 +13,7 @@ from datetime import date
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MACBOOK_DIR = os.path.join(BASE_DIR, "inputs", "macbook")
 NAS_DIR = os.path.join(BASE_DIR, "inputs", "NAS-YuData")
-HD_DIR = os.path.join(BASE_DIR, "inputs", "NoChange", "4TB-HD")
+HD_DIR = os.path.join(BASE_DIR, "inputs", "4TB-HD")
 STATE_DIR = os.path.join(BASE_DIR, "state")
 OUTPUTS_DIR = os.path.join(BASE_DIR, "outputs")
 
@@ -122,7 +122,7 @@ def update_rejected_ledger(current_macbook_records, nas_keys):
 
 
 def write_path_list(out_path, keys, path_by_key):
-    with open(out_path, "w", encoding="utf-8") as f:
+    with open(out_path, "w", encoding="utf-8-sig") as f:
         for key in sorted(keys):
             f.write(path_by_key[key] + "\n")
 

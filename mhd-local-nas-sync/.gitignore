@@ -2,3 +2,9 @@ venv/
 __pycache__/
 *.pyc
 .DS_Store
+outputs/
+inputs/NAS-YuData/
+inputs/macbook/
+inputs/4TB-HD/
+full-list/macbook/
+full-list/NAS-YuData/

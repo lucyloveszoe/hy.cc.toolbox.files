@@ -1,11 +1,11 @@
-# mhd-local-nas-sync — 交接文档
+# gap_analysis.py — 交接文档
 
 ## 背景 / 目标
 
 三个文件来源：
 - `inputs/macbook/`（暂存区，清单会变）
 - `inputs/NAS-YuData/`（最终备份目的地，清单会变，且包含其他来源的文件，不要求和4TB-HD/macbook对齐）
-- `inputs/NoChange/4TB-HD/`（备份源头，只读，清单不变）
+- `inputs/4TB-HD/`（备份源头，只读，清单不变）
 
 搬运流程：4TB-HD → 复制到 macbook 暂存 → 人工质检、删不合格的 → 上传到 NAS-YuData。
 
@@ -26,6 +26,8 @@
 - **疑似改名**（同 size、文件名不同）→ **不自动判定为同一文件**，只列入 `suspected_renames.csv` 给人工看。这是用户明确选择的方案（讨论时给了三个选项：自动合并 / 只列疑似清单不自动认定 / 严格只认精确匹配，用户选了中间这个）。原因：字节数相同不代表一定是同一个文件，尤其小文件容易撞车；但完全不提示又会让真实改名被当成新文件重复搬运。
   - 验证效果：实测中成功识别出如"91新人Dr哥新作第七部-双飞女神…" (4TB) vs "第七部-双飞女神…" (macbook，标题被精简过) 这类真实改名，字节数一致（1515663693 bytes）。
 - 未做基于文件名相似度的模糊匹配（如 `difflib`），当前只用"同 size 且未被精确匹配"这一个条件产生候选对。如果未来疑似清单噪音太大（尤其小文件、常见 size 撞车），可以加一层文件名相似度打分排序。
+
+这套 `Record` / `load_dir` / `keys_of` / `first_path_by_key` / `suspected_renames` / `write_path_list` 的实现同时被 [gap_precheck.py](gap_precheck.md) 和 [gap_zone.py](gap_zone.md) 直接复用，没有重复实现。
 
 ## 三组差异对比
 
@@ -50,15 +52,21 @@
 - 这个判定是启发式的，不是100%准确——如果用户把文件从macbook移到了一个脚本没扫描到的地方（而不是删除），也会被误判为"淘汰"。目前没有反悔/纠正机制，如果误判需要手动编辑 `rejected_ledger.csv` 删除对应行。
 - 曾在开发过程中改了垃圾文件过滤规则（新增过滤 `desktop.ini`/`Thumbs.db`），导致两次运行之间 macbook 清单"看起来变了"，产生了9条假的淘汰记录。**教训：以后再改动"哪些文件算垃圾/该被过滤"这类规则时，要先清空 `state/` 重新建立基线，否则会污染淘汰清单。**
 
+这套 snapshot+ledger 机制是 gap_analysis.py 专属的（因为只有 macbook 暂存区有"会被清空重来"的语义），[gap_precheck.py](gap_precheck.md) 和 [gap_zone.py](gap_zone.md) 都没有移植它。
+
 ## 垃圾文件过滤
 
 过滤名单（大小写不敏感）：`.DS_Store`、`desktop.ini`、`Thumbs.db`。这些是文件系统自动生成的元数据文件，不是真实内容，三边清单里都有混入。发现是在检查 `4tb_pending.txt` 抽样结果时人工找出来的，不是一开始就想到的——**未来如果又发现新的垃圾文件模式，直接加进 `JUNK_FILENAMES` 集合，但要记得清空 state/ 重跑基线**。
 
-## 输出编码（CSV 乱码问题的修复）
+## 输出编码
 
-Excel/Numbers 打开 `summary.csv` / `suspected_renames.csv` 时中文乱码，原因是这两个软件对不带 BOM 的 UTF-8 CSV 会按系统默认编码猜测。修复：这两个 CSV 用 `encoding="utf-8-sig"` 写入（加 UTF-8 BOM）。
+Excel/Numbers 打开输出文件时中文乱码，原因是这些软件对不带 BOM 的 UTF-8 文件会按系统默认编码猜测，而 CotEditor 等编辑器是按内容识别 UTF-8，所以同一个文件在 CotEditor 里正常、Excel 里乱码。
 
-**`.txt` 路径清单没有加 BOM**，是刻意的：这些文件的用途是直接喂给复制脚本（比如 `while read -r path; do cp "$path" ...`），如果加了 BOM，第一行路径开头会多出不可见字符，可能导致脚本处理第一条记录时找不到文件。`state/` 下的内部 CSV（快照、淘汰清单）也没加 BOM，因为不是给用户在 Excel 里看的交付物。
+**2026-09-12 起，所有输出（`.csv` 和 `.txt`）统一用 `encoding="utf-8-sig"` 写入（带 UTF-8 BOM）**，包括 `write_path_list()` 产出的 `4tb_pending.txt` / `macbook_pending_upload.txt` / `already_backed_up.txt`。
+
+**历史决定的变更**：这几个 `.txt` 路径清单最初是故意不加 BOM 的，因为设计用途是直接喂给复制脚本（比如 `while read -r path; do cp "$path" ...`）——BOM 会在第一行路径前多出3个不可见字节，导致脚本处理第一条记录时找不到文件。2026-09-12 确认改为优先保证 Excel 可读，统一加 BOM。**如果以后写消费这些 `.txt` 的自动化脚本，第一行需要先剥掉 BOM**，例如 shell 里 `sed '1s/^\xef\xbb\xbf//' file.txt`，或者 Python 里用 `encoding="utf-8-sig"` 读取（会自动剥掉）。
+
+`state/` 下的内部 CSV（快照、淘汰清单）没加 BOM，因为不是给用户在 Excel 里看的交付物。
 
 ## 技术选型理由
 
@@ -68,13 +76,16 @@ Excel/Numbers 打开 `summary.csv` / `suspected_renames.csv` 时中文乱码，�
 
 ```
 mhd-local-nas-sync/
-  gap_analysis.py          # 主脚本，跑一次出一份报告
-  venv/                     # 子项目专属虚拟环境
+  gap_analysis.py           # 主脚本，跑一次出一份三方对比报告
+  gap_precheck.py           # 单来源内部重复自检，见 gap_precheck.md
+  gap_zone.py               # 多 zone 两两对比，见 gap_zone.md
+  venv/                      # 子项目专属虚拟环境
   inputs/
     macbook/*.txt
     NAS-YuData/*.txt
-    NoChange/4TB-HD/*.txt   # 只读源，脚本不会碰
-  state/                    # 持久化，跨运行累积，不要手动删除（除非确认要重建基线）
+    4TB-HD/*.txt             # 只读源，脚本不会碰
+    zones/<zone-name>/*.txt  # gap_zone.py 专用输入
+  state/                     # 持久化，跨运行累积，不要手动删除（除非确认要重建基线）
     macbook_snapshot.csv
     rejected_ledger.csv
   outputs/
@@ -84,6 +95,8 @@ mhd-local-nas-sync/
       already_backed_up.txt
       suspected_renames.csv
       summary.csv
+    YYYY-MM-DD-precheck/      # 见 gap_precheck.md
+    YYYY-MM-DD-zone-gap/      # 见 gap_zone.md
 ```
 
 ## 后续可能的改进方向（未实现，仅记录想法）
