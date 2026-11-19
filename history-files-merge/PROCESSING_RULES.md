@@ -523,3 +523,10 @@ Results of this run: 2009_02_03 — 2 reports removed, 1 pair restored; series h
 5. Quarantine instead of delete (sections 25, 31); delete only on request after the byte/text check; print backup and log paths.
 6. Remove empty folders only after listing them.
 7. Update this document with anything new, commit, and push only when asked.
+
+## 33. Empty folders after a clean-up (2026-11-18)
+
+- **Deduplication and near-copy removal can empty a sub-folder** (`2009_02_03_Report/reports/maichun/chongqing`: all its reports were removed as duplicates). Link, orphan and CSV checks do not notice this; the final audit must also list folders that contain no file (`.DS_Store` does not count) and no sub-folder.
+- **Procedure:** list the empty folders, check `find <folder> -type f ! -name .DS_Store` is 0, delete the stray `.DS_Store`, remove with `rmdir` (it refuses a non-empty folder), report the folder name. Remove only on the user's word, as with the earlier empty `redarmy_II`, `开心` and `2010_04.Reports`.
+- **Final audit scan** (add to the checklist of section 32): walk the roots, skip `txt/`, `doc/`, `pdf/`, report folders without files and without sub-folders. Last result: 0 empty folders, 11,925 image files scanned, 0 fake, 50 CSV files, 15,891 outputs, 0 missing.
+- The scratchpad backups, removed → kept logs and quarantines are deleted only on request after the byte/text check; the scripts (`audit_final.py`, `near_pairs.py`, `merge_*.py`, `dedupe_2010_07.py`, `route.py`) are kept for a future `merge_report_folders.py`.
