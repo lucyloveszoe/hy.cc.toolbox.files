@@ -44,7 +44,7 @@ Tool: `process_html_posts.py <source folder> -o outputs`.
 
 - **Decoding:** use the charset declared in the page (`big5` → `big5hkscs`, `gbk`/`gb2312` → `gb18030`). Decoding everything as GBK produced mojibake on big5 pages.
 - **Posts:** Discuz threads have one `<table id="pidNNN">` per post. The first is the primary post and the rest are replies. Body = element with class `postmessage`. Author = first `<cite>`.
-- **Other layouts** (found by listing pages with no `pid` tables): Xici-style threads use one `<td class="doc_txt">` per post. Older Discuz: one `<div class="t_msgfont">` per post. bt-download pages: body is the first `<td bgcolor=#ffffee colspan=2>`. phpBB: `<span class="postbody">` per post, author = last `span.name`, date = last `發表於:` cell. PHPWind: `<div id="read_tpc|read_NNN" class="tpc_content">` per post. A photo-album page keeps its photos in `<div class="phototable212">` blocks. vBulletin: `<table id="postNNN">`, author = `a.bigusername`, body = first `td.alt1`. Plain pages: `<div id="content">` (author = first `p.author`). Qzone blog: `<div id="blogDetailDiv">`. crazys.net model pages: first `<td>` containing `<b>author</b> 於 … 發表`. **Not posts:** pages saved inside a `*_files` folder that are image-host error pages (DivShare, xs.to) stay `unsupported` on purpose; say so in the report. Add a small adapter in `get_posts` for each new layout. Do not silently skip pages.
+- **Other layouts** (found by listing pages with no `pid` tables): Xici-style threads use one `<td class="doc_txt">` per post. Older Discuz: one `<div class="t_msgfont">` per post. bt-download pages: body is the first `<td bgcolor=#ffffee colspan=2>`. phpBB: `<span class="postbody">` per post, author = last `span.name`, date = last `發表於:` cell. PHPWind: `<div id="read_tpc|read_NNN" class="tpc_content">` per post. A photo-album page keeps its photos in `<div class="phototable212">` blocks. vBulletin: `<table id="postNNN">`, author = `a.bigusername`, body = first `td.alt1`. Plain pages: `<div id="content">` (author = first `p.author`). Qzone blog: `<div id="blogDetailDiv">`. crazys.net model pages: first `<td>` containing `<b>author</b> 於 … 發表`. **Not posts:** pages saved inside a `*_files` folder that are image-host error pages (DivShare, xs.to) stay `unsupported` on purpose; say so in the report. Later additions (2026-11-18, all last-resort adapters placed before the photo-album fallback, so pages that already worked are unaffected): tiexue variant `div.main_body` per post (the `div.reply` wrapper is a copy, skipped); Blogger `div.post-body`; WordPress `div.content` inside `div#post-N` (东莞桑拿网); vBulletin without ids `table.posttable` → first `td.alt1` (红豆社区); `div.divBody` blogs (厚街桑拿坐台小姐内部照片). Empty pages (`<BODY></BODY>`, ~300 bytes), SEO ad pages (百度音乐掌门人 `div.info.zminfo`), search-result or navigation stubs, and a `stat.htm` inside a `_files` folder are not posts: leave them `unsupported` and list them. Add a small adapter in `get_posts` for each new layout. Do not silently skip pages.
 - **Decision per page:**
 
 | Page content | Output |
@@ -134,6 +134,9 @@ Tool: `process_html_posts.py <source folder> -o outputs`.
 | `htmltree.py` | Lenient stdlib HTML tree and charset decoding | – |
 | `process_html_posts.py` | Section 3.B, 4.2, 4.3 (partly), 4.4, `p<NNN>_` images, summary and images manifest, layouts: pid tables, `doc_txt`, `t_msgfont`, bt-download `td#ffffee`, phpBB `postbody`, PHPWind `read_*`, photo album; control chars (`\x1c` etc.) cleaned; `[image missing]` marker where an image file was not saved; unreferenced images go to `images.only/<folder>/x_…` | Does not merge txt (section 5). Writes `txt/<folder>/…` per page. `本帖最近评分记录` (rating logs) is kept. |
 | `collect_images.py` | Section 3.C, writes to `images.only/<folder>/` (`--sub images` to change) | – |
+| `clean_loose_txt.py` | Loose `.txt` (GBK or UTF-16) → UTF-8 with the noise rules of section 17; never overwrites | Rules are tuned to the maichun garbage forms seen so far; review the counts it prints. |
+
+Run these scripts from the project folder **without** `python -I`: `process_html_posts.py` imports `clean_doc_noise`, `doc_to_txt` and `htmltree` from its own folder, and `-I` blocks that (`ModuleNotFoundError`). Keep `-I` for throw-away scripts that read untrusted input.
 
 Manual steps used for this data set, to be scripted later: 4.3 and 4.4 on the output txt, the txt merge, moving unreferenced images to `images.only/`, and adding the `output` column to the summary.
 
@@ -283,3 +286,171 @@ Totals: 354 reports, 369 txt, 3,381 images in `images/` (all linked, 0 broken, 0
 - `KoreaMap.doc` has 7 PNGs but no INCLUDEPICTURE field: `doc_to_txt` and the `<img>` test both miss it; `carve()` finds it. Pictures were placed after paragraph k (position is a guess).
 - The first run happened before the adapters existed; 535 `images.only` files it wrote became linked images. They were hash-checked and moved (not deleted) out of `outputs/`. Always run into a scratch folder and compare the file lists before cleaning (section 12 stale rule).
 - Left as is: private-use characters in the source of `【元鼎+】德阳！200块钱…`, one stray `本帖来源` in `【麦田+】…如意里发廊…`, nicknames in the QQ blacklist page, `maichun`/`买春堂` in URLs and text.
+
+## 16. Reference runs, 2026-11-18: 2010_04 and 2010_07 sets
+
+Output roots under `~/Downloads/data.done/` (one root per source batch, so folders with the same name, e.g. `mc` and `学生妹`, never collide):
+
+```
+2010_04.Reports/  and  2010_07.Reports/
+  <folder>/<rel path>.html        reports; images linked as images/<folder>/p<NNN>_… (../ per sub-folder level)
+  <folder>/images/<folder>/       images used by a report
+  <folder>_summary.csv            one row per source page (+ output column, relative to the CSV folder)
+  <folder>_images_manifest.csv    one row per image
+  txt/<folder>/                   txt pages (2010_07 only; 2010_04 txt went to Reports.series-…/txt/tmp)
+  images.only/<folder>/           unreferenced images
+Reports.series-2026.11.17/
+  html/<folder>/…                 same layout as above (for 老红军_2010_04, 沧桑的情人)
+  txt/locations/  txt/series/     the txt library (sections 18-19)
+  txt/tmp/<folder>/               staging for txt pages; if the name exists, use <folder>_2010_04, never merge into it
+```
+
+| Set | Folders | Pages → reports / txt / unsupported |
+|---|---|---|
+| 2010_04 (8 folders) | 胜地, 学生妹, —夜游, come2meAsia, hk9394, mc, mc2, society | 593 reports, 747 txt, 16 unsupported |
+| 老红军, 沧桑的情人 | | 58 + 16 reports, 5 txt |
+| 2010_07 | mc, mc-topvids, mc3, Society, yktm, 学生妹 | 133 reports, 86 txt, 0 unsupported |
+| Places (2010_07) | 264 pages | 227 txt-type, 31 html, 6 unsupported |
+
+Notes:
+- **Folder named in the request vs. what exists:** `inputs/` changes between turns (the user moves folders). List it first, process what is there, and say which requested folders were missing. Folders not named (e.g. `Places` in one turn) are not processed.
+- **Byte-identical folders:** `mc` and `mc 2` had 52 of 52 identical pages; process one and say so. Check with md5 of the page files before running.
+- **Zips with Windows names:** `unzip` mangles GBK file names and creates `a\b` literal names. Extract with Python `zipfile`: decode names `cp437 → gbk` (fallback `big5hkscs`) when bit 0x800 is not set, replace `\` with `/`, and treat names ending in `/` as directories (they are not flagged `is_dir`). Extract each zip into its own scratch folder.
+- **Pages whose images were never saved** (no `_files` folder, or one file) correctly fall back to txt. Check `unresolved_img_refs` on txt pages before calling it a bug.
+- **Empty stubs:** ~300-byte pages with an empty `<BODY>` stay `unsupported`. 12 of 16 unsupported pages in the 2010_04 set were stubs.
+- **`.doc` with pictures:** `doc_to_html` falls back to remote URLs when the carved count differs from the `INCLUDEPICTURE` count (洗浴.doc: 7 of 19). Do not store such a report; ask. `KoreaMap.doc` carves 7 PNGs byte-identical to the earlier run, so the earlier html can be reused with its image folder depth adjusted (`../images/…` when the report is one level down).
+- **Duplicate html reports across sets:** compare normalized text (strip head, h1, tags, whitespace) plus the image-name sequence (without `p<NNN>_`). Exact → do not store. 23 of 31 Places html pages were exact copies.
+
+## 17. Loose txt files and doc text: encoding and noise (`clean_loose_txt.py`)
+
+- **Encoding:** BOM `FF FE` → UTF-16; else UTF-8; else GBK (`gb18030`). Of 7 loose files in `Places`/`胜地`: 4 GBK, 3 UTF-16. Normalize U+2028/2029, `\r\n`, NBSP and U+3000 to space; no U+FFFD allowed.
+- **Noise forms found (all removed, then recount):**
+  1. spam `ＭＣ军团（招財進寶）[关闭注册]` / `军团,招财进宝,华人[信性]息网站第一` + ASCII run;
+  2. bare `www.maichun.org` followed by an ASCII garbage run (to line end or first non-ASCII);
+  3. a garbage run of 1-2 char tokens glued **in front of** the URL;
+  4. spaced tail garbage (`strip_tail` from `doc_to_txt.py`);
+  5. garbage at the start of a line glued to the following Chinese text or followed by 2+ spaces (needs ≥3 tokens with a mixed alnum+punct token, or ≥6 tokens that all look like garbage);
+  6. a 2-token tail like `。! j.` (needs a punct-only token and a mixed token);
+  7. a ≥5-token tail where every token is garbage-like;
+  8. a garbage run glued to list numbering (`{2.米兰…`: strip the run and one glued character, keep the number).
+- **Do not remove** plain runs such as `ML KJ`, `16 -- 28`, table rows (`E 400元 90分钟 A  +B`). After cleaning, a scan for lines with ≥4 short ASCII tokens should show only real content.
+- Garbage can also survive in txt written by `process_html_posts.py` (tail runs after Chinese text). After every run, scan txt and html lines with the same detectors and fix in place (26 txt lines and 4 html lines in the 2010_04 set; for html unescape the line first, re-escape `& < >`, skip lines that contain tags).
+- Result for the three big `Places` files: `南京.txt` 30,311 → 22,365 chars, `杭州/简介.txt` 60,042 → 46,028, `南京/总结.txt` 9,877 → 8,008.
+- Unrecoverable source mojibake (private-use characters, e.g. in `魅力写手作品…泡良还在路上…`) is left as is; report the count.
+
+## 18. Merging txt into the library (`locations/`, `series/`), 2026-11-18
+
+Order of work for any "merge X into Y" request:
+1. **Dry run first, read-only.** Candidates, exact duplicates, near duplicates, new count. Report counts, not text. Wait for the user's choice when there is a real choice (dups, compilations, naming).
+2. **Duplicate tests** (against all of `locations` + `series`, and against the other candidates):
+   - exact: md5 of the text with all whitespace removed;
+   - near: share of 8-grams found in one other story > 0.6 (both ≥ 300 chars). For near-identical text use all 8-grams on both sides; sampling at different offsets gave false "0.43" for identical files;
+   - title-only pre-filters (first 12 chars) miss renamed copies; always run the body test too.
+   - Skip duplicates; keep the longer version inside a batch. A near duplicate that is a **superset** of a library story (徐州 `总结`, +15% text, reordered) → replace that story in place and rebuild the manifest, not a second copy.
+3. **Back up** the target txt and manifest to the scratchpad (`bak_*/`) before touching them.
+4. **Append** (section 4 algorithm of this file): `old = rstrip('\n')`, new story starts at `old.count('\n') + 3`; story text = `strip('\n')` of the source; `file` = source file name with `/`→`／`; numbering continues. Empty target (user-created empty `广西.txt`): first story at line 1, create the manifest. New region → new `<region>.txt` + manifest.
+5. **Verify** with the strict checklist of section 19. Report counts, backups and what was skipped.
+6. **Delete sources only after the user says so**, and only after each source's whitespace-normalized text is found in the target (trimmed-garbage copies: compare after applying the same trimming). Save the deleted list to the scratchpad. Remove folders that become empty (remove subfolders first; `.DS_Store` does not count). Originals also remain in the zips.
+
+Location routing (`mc-merged` → `locations/`):
+- Folder names are the location when the source is organised by region (`Places/上海` → `上海.txt`; 杭州, 徐州, 苏州, 南京 → `江浙.txt`; 山东 sub-folders → `山东.txt`). Follow the user's folder decision even when the text hints otherwise (重庆江北…→ stays in 上海 if the user says so).
+- For mixed sources score each story: keyword hits in the title (×6), `【…地址/地点/位置/店名…】` field (×6) and body (×1) against a region keyword table. Confident = best ≥ 8 and ≥ 2× second, or the board tag agrees with the best (`[桂总阅]`→广西, `[云总阅]`→云南, `[川参]`→川渝, `[湘总阅]`→湖南 …; the tag only breaks ties, rule 2.5 still holds). Everything else stays pending.
+- Remove ambiguous words from the table: 长安, 南海, 沙田, 白云, 南山, 天河 (广东); 朝阳区, 大兴, 通州, 昌平, 房山 (京津). Known false positives: 延安西路 = 上海 (not 陕西), 南京路/高雄路 = 武汉 (not 江浙/台湾), 韩庄 = 山东 (微山), 江宁 = 南京, 东城/长安 hotel ads = 东莞.
+- **Contested stories:** use the place named in the title (河口, 德宏→云南; 成都→川渝; 北京→京津; 武汉→湖北; 济南→山东; 西安→陕西; 澳门→港澳). Titles that only give the girl's origin (`广东妹`, `广西姊妹花`) say nothing about where it happened: hold or ask.
+- **Venue/series evidence:** a story with no clue can be routed when its venue or series name appears almost only in one region file of the library (心雨舞厅 42× 川渝, 白天鹅 154× 川渝, `疯狂嫖娼记` earlier parts in 云南, 樟木头 in 广东).
+- Non-China or unknown country → `其他海外.txt` (renamed from `非美海外.txt`; the rename touched `series/福建狼古巴行.manifest.csv`, `series/援交系列小T感受.manifest.csv`, `locations/错位报告.csv` source/column text, and this file). Country files that exist (`日本`, `韩国`, `美国`, `俄罗斯`) are used when the title names that country.
+- New files created this session: `江西`, `港澳`, `甘肃`, and `待定义` (not a region: holds stories whose location could not be decided; the user chose the name `待定义`).
+- Keep a `routing_report.csv` (no, file, region, scores, second region, board tag, basis, status, current number) next to the source, update it after every pass, and remove routed stories from the source only after verifying their text is in `locations` (section 5 rebuild: trim, reflow, renumber).
+- Pass log for `mc-merged` (555 stories): 385 confident, 96 "probably right", 24 contested by title, 7 non-China/doubtful, 7 by venue/series evidence, 8 by reading, 4 by the user → 531 routed in total (385+96+24+7+7+8+4), 9 skipped duplicates deleted, 15 → `待定义` (531+9+15 = 555).
+
+## 19. Strict check for `locations/` and `series/` manifests (run before calling the library done)
+
+Per txt/manifest pair, all of these must hold:
+- both files exist; manifest has a BOM, LF line endings and the columns `no,file,start_line,end_line,chars` (locations; one series file uses the same) or `part,title,source_file,source_start_line,source_end_line,start_line,end_line,chars` (series). A single-article series file gets a 1-row manifest with empty source columns.
+- txt is UTF-8, LF only, ends with exactly one `\n`.
+- `no/part` is 1..N; first story starts at line 1; each `end_line ≥ start_line`; the last story ends on the last line; consecutive stories are exactly one blank line apart.
+- `chars == len('\n'.join(lines[start-1:end]))`.
+- **No story starts or ends on a blank line.** A story's own trailing blank line plus the separator gives two blank lines and an off-by-one range. Fix by the section 5 rebuild: trim each story, reflow with one blank line, recompute `start/end/chars`, and assert that the whitespace-normalized text is unchanged. (93 stories in 9 files had this; they were pre-existing.)
+- When normalizing a file's trailing newlines, re-check the last manifest row: if its `end_line` counted the removed blank line it now points past the end of the file.
+- Every non-empty line is covered by some story; no U+FFFD, control characters, NBSP, `&#NNN;`, `INCLUDEPICTURE`, `HYPERLINK`, `本帖来源`, `买春堂版权所有`, spam phrase; garbage-tail scan finds nothing.
+- No duplicate story across all files (md5 of whitespace-free text).
+- Titles vs. first line: differences are listed for a manual look only (the compilations `总结`, `简介`, `睢宁` have non-title first lines on purpose).
+- Final state of this session: 47 pairs (30 locations, 17 series), 1,350 stories, 0 issues, 0 duplicate groups.
+
+HTML side of the final check: for each output root count html and images; resolve every local `<img src>` and other local links (unescape, ignore `#`/`?`, treat NFC/NFD names as equal); no remote links; every image under `images/` is linked by a report (0 orphans). `images.only` files are unreferenced on purpose and are reported separately. Results: `2010_04.Reports` 595 html / 4,619 images, `2010_07.Reports` 141 / 1,467, `Reports.series-2026.11.17/html` 148 / 2,712, all with 0 broken and 0 orphans.
+
+## 20. CSV upkeep: blank and tag rows whose file is gone
+
+When the user moves or deletes outputs by hand (or after a merge removes txt pages), every `output` must still point to a real file (relative to the CSV folder):
+- re-point if the content lives elsewhere (txt pages merged into `locations` → `../Reports.series-…/txt/locations/<region>.txt`; use the routing report to find the region; blank rows whose duplicate was deleted);
+- otherwise blank `output`; in `*_images_manifest.csv` append `[output file no longer in data.done]` to `status`; in `*_summary.csv`, which has no status column, add a trailing `note` column (empty elsewhere) with the same tag. Never delete rows, keep the BOM, the line endings and the existing column order;
+- back up all CSVs first; re-scan afterwards (`missing = 0`). "Listed more than once" is fine for txt rows that point at one region file.
+- After this session: `2010_04.Reports` 1,112 and `Reports.series-2026.11.17/html` 6 rows tagged; `2010_07.Reports` 24 rows tagged.
+
+## 21. Habits that worked this session
+
+- Report counts only; never print story text (section 1.4). Titles and short context are fine.
+- One question at a time when the user must decide (duplicates, compilations, where a story belongs, file names). Do not guess locations: hold them and list them with the evidence.
+- Every destructive step: list → verify content is elsewhere → save the list → delete → re-verify.
+- After the user edits the tree between turns, re-list before acting (folders and files disappeared several times without being deleted by the assistant).
+- Quote the user's typo'd names once, then rename when told (`带定义` → `待定义`) and fix every CSV that mentions the old name (`grep` over all CSVs).
+
+## 22. Reference run: `inputs/mcu` (2026-11-18)
+
+| Item | Result |
+|---|---|
+| Pages | 27 saved pages → 4 html reports, 23 txt, 22 images, 0 unsupported (`process_html_posts.py inputs/mcu -o outputs`) |
+| Txt merge | 23 txt → `outputs/txt/mcu/mcu.txt` + `mcu.manifest.csv` (5.1 layout; sources deleted on request after a whitespace-normalized "found in merged file" check) |
+| Move to the series library | `html/mcu/*.html`, `html/mcu/images/mcu/`, `html/mcu_summary.csv` (+ `output` column), `html/mcu_images_manifest.csv`; the merged txt lives in `txt/tmp/category/` |
+
+- Reports written by the script link `../../images/<folder>/…`; in the library layout (`html/<folder>/x.html`, images in `html/<folder>/images/<folder>/`) the link is `images/<folder>/…`. Rewrite the links when moving, then re-run the link check.
+- Summary `output` for txt pages that were merged: `../txt/tmp/category/<folder>.txt (merged)` (path relative to `html/`). Always re-list the target first: the user moved the merged txt between turns.
+
+## 23. Merging one report folder into another (html + images + CSVs)
+
+Used for `mc3`, `mc2`, `mc` → `mc`; `society` → `Society`; `Places` → `胜地`; `学生妹` → `学生妹`; `come2meAsia`, `hk9394`, `开心`, `mc` (HPLaptopBack). Steps:
+
+1. **Dry run, read-only.** For every source report compute the normalized text (strip `<head>`, `<h1>`, tags, whitespace) and the image-name sequence without `p<NNN>_`:
+   - exact = same text and same image sequence → skip;
+   - near = 8-gram share > 0.6 → decide (below);
+   - new → copy.
+   Also count image-name clashes (same name, different bytes) and html-name clashes.
+2. **Compare against the target only, plus the files already chosen for the target.** A first run printed "near" for pairs inside the *source* (the pool included just-added source files); matching against the target alone gave 1–11 %. When in doubt, print the best match's title.
+3. **Near copies:** replace the target copy only when the incoming one has more images, and only after backing the old one up (images moved with it). Equal or fewer images → skip. Several versions of one thread inside the source: keep the one with the most images.
+4. **Check sibling folders and the series folders before copying.** A merge into `mc` re-added `七十三` and `七十四`, which had been moved earlier into `上海狼在俄罗斯`; it was noticed only after the run and undone. Rule: a report that already lives in another folder of the library is a duplicate, not new.
+5. **Copy, never move.** Reports are written with links rewritten (`images/<src>/` → `images/<target>/`); images are copied only when a kept report uses them; an existing image name must be byte-identical (assert). Trim forum footers from file name, `<title>` and `<h1>`: regex `\s+-\s+([☆╉]|[^\s-]*春色).*$`.
+6. **CSVs:** add source rows whose `page` is not in the target (txt and unsupported rows too, keep their notes); html rows of skipped duplicates get a blank `output` and a note; add a trailing `note` column when the target has none; manifest rows only for copied images. `images_copied` counts unique files, so it can be lower than the number of `<img>` tags.
+7. **Verify:** links, orphans, every `output` exists, every html in the summary once, every image in the manifest once.
+8. **Delete the source only on request**, and only after: every report's text is in the target (overlap ≥ 0.9 when versions differ) and every image has a byte-identical copy. Save the CSVs and the file list to the scratchpad first; then remove folders, CSVs and the empty parent (`.DS_Store` does not count).
+9. **When the source is a plain older copy** (`come2meAsia`, `hk9394` of HPLaptopBack: 100 % identical), say so and change nothing; it can still be offered for deletion.
+10. **Naming clash with an existing folder** (`html/学生妹` already holds the merged content): do not create a second copy; ask or follow section 16's `<folder>_2010_xx` rule.
+11. Whole-folder moves (`2010_04.Reports/*` → `2010_07.Reports`): check name clashes first. Relative paths in the CSVs stay valid because folder and CSVs move together.
+
+## 24. Merging txt into `locations/` (more cases, 2026-11-18)
+
+- **Target without a manifest and without story headers** (`category/学生妹.txt`): do not guess boundaries (only 2 of 51 titles occurred in it). With the user's choice: one **legacy row** covering the old lines, then one row per appended story.
+- **Which candidates to append:** exact duplicates and near duplicates are skipped. State the metric: 8-gram share of the source found in the target (used to choose) and character coverage (a different, higher number). Showing both caused confusion; pick one for deletion decisions.
+- **Side-by-side requests:** do not print bodies. Show source chars, matched target lines, chars missing from the target and 10–14 character hints. In every case the missing text was reply tails, rating lines or author notes, not different stories.
+- **Delete in stages** when asked (the >95 %, then >90 %, then all). Before each stage list the files and save the list. The deleted tail text is gone afterwards; say so.
+- **Routing a folder (`tmp/tmp`, 36 files):** 9 duplicates skipped, 1 compilation held, 26 routed (江浙 9, 山东 4, 陕西 3, 湖北 2, 河南, 川渝, 新疆 (new file), 河北, 待定义 4). Strip the board footer (` - 江苏春色 - -华东春色- - 皇家帝国花园【暂时关闭注册】`) from titles.
+- **Compilation (`发廊.txt`):** a title line that follows a blank line and precedes `【验证时间】`/`【买春地址】` fields starts a story. Split into files, trim spam residue (`华人信息网站第一 发信到 …@… 索取最新地址`), check each against the library, route, delete the pieces only after text check.
+- **Phone numbers in titles:** delete files whose title holds a complete mainland mobile number (`1[3-9]\d{9}`, also written with spaces). A truncated `13` is not a number.
+- After routing run the strict checks of section 19 on the touched files only and compare spam-phrase counts before/after (old stories may legitimately still contain `关闭注册`).
+
+## 25. Auditing and de-duplicating a report root (`2010_07.Reports`, 2026-11-18)
+
+Checks per folder: `<img>` links resolve, orphans, well-formed html, non-image files, stray `.DS_Store`; per CSV: BOM, column count, `output` exists, no repeated `output` except txt rows pointing at one `locations` file, html in summary once, images in manifest once, summary `images_copied` vs unique images, manifest `status` of rows without `output` carries `[output file no longer in data.done]`.
+
+De-duplication of exact duplicate reports across the root:
+1. Group by normalized text + image sequence (section 23). Result: 82 groups / 83 extra copies, 56 of them between `—夜游` and `开心`.
+2. Keep one per group: folder priority `mc > —夜游 > hk9394 > come2meAsia > mc-topvids > yktm > Society > 开心`; inside one folder keep the longest file name (the most complete title).
+3. **Quarantine first** (outside `data.done`, same relative paths, plus a `removed → kept` TSV and a CSV backup), repoint the CSV rows to the kept copy, move images only when every report using them is removed, re-run the audit (0 groups, 0 broken, 0 orphans). Delete the quarantine only on the user's word, after a byte check of every image against its kept copy.
+4. Images with the same bytes under different `p<NNN>_` names (216 groups left) are legitimate: each is linked by a different report. Do not remove them.
+5. A folder whose reports were all duplicates (`开心`) ends up empty but its CSVs still have rows pointing elsewhere; ask before removing folder and CSVs.
+
+## 26. Working habits added this session
+
+- When the next step is determined by the rules and the data (exact duplicates, nothing new, a plain older copy), state the finding and the default and continue. The user twice rejected a multiple-choice question and answered with the next instruction instead; ask only when there is a real choice, and then once, briefly.
+- A "move" that finds the target name already taken, or a "merge" with nothing new, is reported as such with counts; do not invent work.
+- Always give the backup and deleted-list paths (scratchpad) after a destructive step.
+- Scripts used this session were throw-away scratchpad scripts (`merge_*.py`, `dedupe_2010_07.py`). Candidate for a project script: one `merge_report_folders.py` implementing section 23 (dry run + `go`).
