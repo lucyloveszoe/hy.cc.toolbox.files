@@ -530,3 +530,24 @@ Results of this run: 2009_02_03 — 2 reports removed, 1 pair restored; series h
 - **Procedure:** list the empty folders, check `find <folder> -type f ! -name .DS_Store` is 0, delete the stray `.DS_Store`, remove with `rmdir` (it refuses a non-empty folder), report the folder name. Remove only on the user's word, as with the earlier empty `redarmy_II`, `开心` and `2010_04.Reports`.
 - **Final audit scan** (add to the checklist of section 32): walk the roots, skip `txt/`, `doc/`, `pdf/`, report folders without files and without sub-folders. Last result: 0 empty folders, 11,925 image files scanned, 0 fake, 50 CSV files, 15,891 outputs, 0 missing.
 - The scratchpad backups, removed → kept logs and quarantines are deleted only on request after the byte/text check; the scripts (`audit_final.py`, `near_pairs.py`, `merge_*.py`, `dedupe_2010_07.py`, `route.py`) are kept for a future `merge_report_folders.py`.
+
+## 34. Project script `merge_report_folders.py`
+
+Implements sections 23, 25, 27, 28, 30, 31 and 33 (standard library only; run inside `venv`; strings compared lower-cased without whitespace, ratios printed with two decimals). Every command that changes files is a dry run until `--go`.
+
+```bash
+source venv/bin/activate
+python merge_report_folders.py audit  <root> [--data-dir <data.done>]      # links, orphans, header sniff, CSVs, duplicates, empty folders, all CSVs
+python merge_report_folders.py near   <root>                               # near pairs with common / only-in-each image counts
+python merge_report_folders.py dedupe <root> --data-dir <data.done> [--priority a,b] [--quarantine DIR] [--go]
+python merge_report_folders.py merge  <source-folder> <target-folder> [--backup-dir DIR] [--go]
+python merge_report_folders.py remove-source <source-folder> <target-folder> [--go]
+```
+
+- Layouts are detected: `reports/<folder>` + `images/<folder>` (A), `<folder>/…` with `<folder>/images/` (B), per-report image folders (single).
+- `audit` exits with 1 when an issue is found. Pass `--data-dir` for the whole `data.done` so the all-CSV check covers CSVs of other roots.
+- `dedupe` quarantines exact duplicates (keep: more unique images, longest name, `--priority`, path), holds a group whose images differ in bytes (section 28), repoints the rows of every CSV under `--data-dir`, writes `removed_to_kept.tsv` and a CSV backup into the quarantine. It never deletes.
+- `merge` compares every source report with all other folders of the target root: exact → skipped, near (> 0.60 share) → listed and not copied (decide by hand), new → copied with links and footer fixed, images copied, summary/manifest rows added.
+- `remove-source` refuses unless every report has ≥ 0.90 text coverage in the other folders and every image has a byte-identical copy; with `--go` it backs up the two CSVs, writes the file list and deletes the folder.
+- Tested read-only on all roots (same numbers as the manual audits) and with `--go` on synthetic copies in the scratchpad (dedupe: 21 groups quarantined and re-audited clean; merge: 4 new reports added, near copy listed, `remove-source` correctly refused because of the near copy).
+- Not covered (by design): replacing near copies, splitting compilations, txt routing (sections 18, 24), fake-image repair (section 30), swapping larger images (section 28).
