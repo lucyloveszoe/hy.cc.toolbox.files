@@ -550,7 +550,8 @@ python merge_report_folders.py remove-source <source-folder> <target-folder> [--
 - `merge` compares every source report with all other folders of the target root: exact → skipped, near (> 0.60 share) → listed and not copied (decide by hand), new → copied with links and footer fixed, images copied, summary/manifest rows added.
 - `remove-source` refuses unless every report has ≥ 0.90 text coverage in the other folders and every image has a byte-identical copy; with `--go` it backs up the two CSVs, writes the file list and deletes the folder.
 - Tested read-only on all roots (same numbers as the manual audits) and with `--go` on synthetic copies in the scratchpad (dedupe: 21 groups quarantined and re-audited clean; merge: 4 new reports added, near copy listed, `remove-source` correctly refused because of the near copy).
-- Not covered (by design): replacing near copies, splitting compilations, txt routing (sections 18, 24), fake-image repair (section 30), swapping larger images (section 28).
+- Also in the script: `repoint --old OLD --new NEW --data-dir DIR [DIR ...]` repairs CSV `output` paths after a folder was moved or renamed (section 36; a moved CSV is read against its old folder), and `fix-fake <root>` fixes image files that are error pages (section 30: `[image missing]` in the report, tagged manifest row, file quarantined, `images_copied` lowered). Both are dry runs until `--go`.
+- Not covered (by design): replacing near copies, splitting compilations, txt routing (sections 18, 24), swapping larger images (section 28).
 
 ## 35. Auditing and fixing the txt library (2026-11-19)
 
@@ -586,3 +587,33 @@ Findings and fixes:
 6. **Verify:** every quarantined image has a byte-identical kept copy (0 without); rescan: 5,001 images left, 98 cross-folder groups, 0 fake, 0 empty folders. Folder 478 MB → 457 MB.
 7. **Delete the quarantine only on request** after repeating the byte check; the quarantine also holds `Thumbs.db` caches from the removed folders (17), which are not logged and are not images.
 8. **Order of work:** folder-level containment first, then within-folder copies (the second step does not change which hash sets are contained).
+
+## 38. Scripts, current state and open items (as of 2026-11-19)
+
+**Project scripts (all checked in, standard library only, run inside `venv`):**
+
+| Script | Use | Section |
+|---|---|---|
+| `merge_report_folders.py` | `audit`, `near`, `dedupe`, `merge`, `remove-source`, `repoint`, `fix-fake` for html report roots; dry run unless `--go` | 23, 25, 27-34, 36 |
+| `audit_txt_library.py` | read-only audit of `locations/`, `series/`, `category/` (txt + manifest pairs, noise, duplicates); `--fix-crlf --go` converts CRLF manifests to LF | 19, 35 |
+| `dedupe_loose_images.py` | md5 de-duplication of loose image sets (`images-only.done`): contained folders and within-folder copies, quarantine, never deletes | 37 |
+| `process_html_posts.py`, `doc_to_html.py`, `doc_to_txt.py`, `clean_doc_noise.py`, `clean_loose_txt.py`, `collect_images.py`, `carve_doc_images.py`, `htmltree.py`, `doc_clean.py`, `doc_ole_text.py` | the original pipelines: saved web pages, Word `.doc`, loose txt, image folders | 3-5, 17 |
+
+Not in code (done by hand, described in the sections): txt routing into `locations/` by keywords (18, 24), splitting a compilation (24), replacing near copies (31), swapping larger images (28).
+
+**Where the data is now (`/Users/hany/Downloads/`):**
+- `data.done/2008_10_17_sss.Report`, `2008_10_30_sss.Report`, `2008_10_30_sss.Report.Single`, `2009_02_03_Report`, `2009_04_23_ss+2009_05_15_Report`, `2010_01+04+07.Reports` (was `2010_07.Reports`), `Reports.series-html-2026.11.19` (was `Reports.series-2026.11.17/html`).
+- `data.done/Reports.series-2026.11.17/txt/{locations,series,category,notes}` (txt library), plus `doc/` and `pdf/`.
+- `images-only.done/` (loose image sets). `inputs/` of the project is git-ignored.
+
+**State after the last audits (2026-11-19):** 7 report roots, 1,548 reports, 11,925 images; 0 broken links, 0 orphan images, 0 fake images, 0 exact-duplicate reports, 0 empty folders; 50 CSV files with 15,891 `output` paths, 0 missing, all relative. Txt library: 50 pairs, 1,422 stories, 0 structural problems. `images-only.done`: 5,001 images, 328 image folders.
+
+**Open items kept on purpose (decide before touching):**
+- 70 near-duplicate pairs: 5 in `2009_02_03_Report`, 52 in `2009_04_23_ss+2009_05_15_Report` (50 are `fdz` posts that only share boilerplate), 11 in `2010_01+04+07.Reports` (the `come2meAsia` `dcboard.plN` pages and two mixed pairs), 2 in the series html root.
+- `2008_10_30_sss.Report`: 1 report and 29 images are listed in the `russian` CSVs, not in `mcjt`'s (the report lives in `reports/mcjt`).
+- 5 stories of `category/mcu.txt` and `category/学生妹.txt` also exist in `locations/` (staging files).
+- 98 groups of pictures shared by several folders of `images-only.done` (each folder also has unique pictures); resized copies are not detected.
+- Source defects left as is: 15 private-use characters (3 txt files), one stray `本帖来源` in an `mc` report, the nickname `招财进宝888`, 35 titles that differ from the story's first line (compilations).
+- All scratchpad backups, quarantines and removed → kept logs were deleted on request: earlier clean-ups cannot be undone from them.
+
+**To resume:** `source venv/bin/activate`, then `python merge_report_folders.py audit <root> --data-dir /Users/hany/Downloads/data.done` for each report root and `python audit_txt_library.py <txt>/locations <txt>/series <txt>/category`; follow the checklist of section 32.

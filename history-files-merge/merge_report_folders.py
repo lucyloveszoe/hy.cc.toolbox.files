@@ -9,6 +9,8 @@ Standard library only. Run it inside the project venv:
     python merge_report_folders.py dedupe <root> [--data-dir DIR] [--quarantine DIR] [--go]
     python merge_report_folders.py merge  <source-folder> <target-folder> [--backup-dir DIR] [--go]
     python merge_report_folders.py remove-source <source-folder> <target-folder> [--backup-dir DIR] [--go]
+    python merge_report_folders.py repoint --old OLD --new NEW --data-dir DIR [DIR ...] [--backup-dir DIR] [--go]
+    python merge_report_folders.py fix-fake <root> [--data-dir DIR] [--quarantine DIR] [--go]
 
 Every command that changes something is a dry run unless --go is given. Nothing is ever deleted
 by `dedupe` (duplicates go to a quarantine folder); `remove-source` deletes only on --go and only
@@ -610,6 +612,113 @@ def cmd_remove_source(args):
     return 0
 
 
+# ----------------------------------------------------------------------------- repoint (section 36)
+def cmd_repoint(args):
+    """Repair CSV `output` paths after a report folder was moved or renamed."""
+    old, new = os.path.abspath(args.old), os.path.abspath(args.new)
+    dirs = [os.path.abspath(d) for d in args.data_dir]
+    csvs = sorted({c for d in dirs for c in all_csvs(d)})
+    plan = {}
+    unresolved = []
+    for c in csvs:
+        rows = read_csv(c)
+        oi = rows[0].index('output')
+        folder = os.path.dirname(c)
+        base = old if os.path.commonpath([folder, new]) == new else folder   # a moved CSV is read against its old folder
+        changed = 0
+        for x in rows[1:]:
+            if len(x) <= oi or not x[oi] or os.path.exists(os.path.normpath(os.path.join(folder, x[oi]))):
+                continue
+            full = os.path.normpath(os.path.join(base, x[oi]))
+            cand = new + full[len(old):] if full.startswith(old + os.sep) else full
+            if os.path.exists(cand):
+                x[oi] = os.path.relpath(cand, folder)
+                changed += 1
+            else:
+                unresolved.append((c, x[oi]))
+        if changed:
+            plan[c] = (rows, changed)
+    print(f'CSV files {len(csvs)}: {len(plan)} need repair, rows to repoint {sum(n for _r, n in plan.values())}, '
+          f'unresolved {len(unresolved)}')
+    for c, (_r, n) in plan.items():
+        print(f'  {os.path.relpath(c, os.path.commonpath(dirs))}: {n}')
+    for c, o in unresolved[:5]:
+        print('  UNRESOLVED', os.path.basename(c), o[-60:])
+    if not args.go:
+        print('dry run; add --go to write (CSVs are copied to --backup-dir first)')
+        return 0
+    backup = os.path.abspath(args.backup_dir or os.path.join(os.path.dirname(new), '_repoint_backup_' + time.strftime('%Y%m%d_%H%M%S')))
+    os.makedirs(backup, exist_ok=False)
+    for c, (rows, _n) in plan.items():
+        shutil.copy2(c, os.path.join(backup, hashlib.md5(c.encode()).hexdigest() + '_' + os.path.basename(c)))
+        write_csv(c, rows)
+    print(f'repointed; originals in {backup}')
+    return 1 if unresolved else 0
+
+
+# ----------------------------------------------------------------------------- fix-fake (section 30)
+def cmd_fix_fake(args):
+    """Image files that are really error pages: tag in report, tag in CSVs, move the file to a quarantine."""
+    root = Root(args.root)
+    data_dir = os.path.abspath(args.data_dir or os.path.dirname(root.path))
+    reports = [f for d in root.folders for f in root.htmls(d)]
+    fakes = [p for d in root.folders for p in root.images(d) if p.lower().endswith(IMG_EXT) and not sniff(p)]
+    linked = collections.defaultdict(list)
+    for f in reports:
+        for p in img_paths(f):
+            linked[p].append(f)
+    print(f'{len(fakes)} image files with a non-image header')
+    for p in fakes:
+        print(f'  {os.path.getsize(p)} B {os.path.relpath(p, root.path)[:70]} linked by {len(linked[p])} report(s)')
+    if not fakes or not args.go:
+        if fakes:
+            print('dry run; add --go to replace the tags with [image missing], tag the CSV rows and quarantine the files')
+        return 0
+    quarantine = os.path.abspath(args.quarantine or os.path.join(data_dir, '_quarantine_fake_' + time.strftime('%Y%m%d_%H%M%S')))
+    os.makedirs(quarantine, exist_ok=False)
+    csvs = all_csvs(data_dir)
+    for c in csvs:
+        dst = os.path.join(quarantine, '_csv_backup', os.path.relpath(c, data_dir))
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        shutil.copy2(c, dst)
+    fake_set = set(fakes)
+    for p in fakes:
+        name = os.path.basename(p)
+        for f in linked[p]:
+            t = read(f)
+            pat = '|'.join(re.escape(n) for n in {name, html.escape(name)})
+            t2, n = re.subn(r'<img[^>]*(?:' + pat + r')[^>]*>', '[image missing]', t)
+            if n:
+                with open(f, 'w', encoding='utf-8', newline='') as fh:
+                    fh.write(t2)
+    for c in csvs:
+        rows = read_csv(c)
+        oi = rows[0].index('output')
+        folder = os.path.dirname(c)
+        changed = False
+        for x in rows[1:]:
+            if len(x) <= oi or not x[oi]:
+                continue
+            full = os.path.normpath(os.path.join(folder, x[oi]))
+            if full in fake_set and c.endswith('_images_manifest.csv'):
+                x[oi] = ''
+                x[1] = x[1] + ' [image file was not a picture]'
+                changed = True
+            elif c.endswith('_summary.csv') and len(x) > 4 and x[4].isdigit() and int(x[4]) > 0:
+                k = sum(1 for p in fakes if full in linked[p])
+                if k:
+                    x[4] = str(max(0, int(x[4]) - k))
+                    changed = True
+        if changed:
+            write_csv(c, rows)
+    for p in fakes:
+        dst = os.path.join(quarantine, os.path.relpath(p, data_dir))
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        shutil.move(p, dst)
+    print(f'fixed {len(fakes)} files; quarantine {quarantine} (delete it only on the user\'s word)')
+    return 0
+
+
 # ----------------------------------------------------------------------------- main
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -640,6 +749,19 @@ def main():
     r.add_argument('--backup-dir')
     r.add_argument('--go', action='store_true')
     r.set_defaults(fn=cmd_remove_source)
+    p = sub.add_parser('repoint', help='repair CSV outputs after a folder was moved or renamed (dry run unless --go)')
+    p.add_argument('--old', required=True, help='old absolute path of the moved folder')
+    p.add_argument('--new', required=True, help='new absolute path of the moved folder')
+    p.add_argument('--data-dir', nargs='+', required=True, help='folders whose CSVs are scanned (include the new location)')
+    p.add_argument('--backup-dir')
+    p.add_argument('--go', action='store_true')
+    p.set_defaults(fn=cmd_repoint)
+    ff = sub.add_parser('fix-fake', help='fix image files that are error pages (dry run unless --go)')
+    ff.add_argument('root')
+    ff.add_argument('--data-dir')
+    ff.add_argument('--quarantine')
+    ff.add_argument('--go', action='store_true')
+    ff.set_defaults(fn=cmd_fix_fake)
     args = ap.parse_args()
     sys.exit(args.fn(args))
 
