@@ -573,3 +573,16 @@ Findings and fixes:
 - Every `output` is relative to the CSV's folder and must stay relative (0 absolute or machine-specific paths in 116 CSVs and about 80,000 cells; 55 rows point into the txt library with `..` paths, e.g. `../Reports.series-2026.11.17/txt/locations/安徽.txt`).
 - **Renaming or moving a report root changes the relative paths of every other CSV that points into it** (the series `html` folder moved three times in a day: into `Downloads`, renamed, then into `data.done`; 462 rows broke each time in 11 CSVs, including the 23 `mcu_summary.csv` rows that point at `txt/category/mcu.txt`). After each move: resolve every `output` of every CSV under `data.done` (and the moved folder), repoint rows whose old resolved path starts with the old folder name, and re-scan for 0 missing outputs. A moved CSV must be resolved against its **old** folder before being rewritten against the new one.
 - Use `merge_report_folders.py audit <root> --data-dir <data.done>` for the all-CSV check; it reports missing outputs but does not repair them.
+
+## 37. De-duplicating a folder of loose images (`images-only.done`, 2026-11-19)
+
+`images-only.done` holds image sets (one folder per saved page or series, sometimes a second level) with no html and no CSV, so nothing refers to the files. 5,729 files (5,393 images, 331 `Thumbs.db`, 3 `.wav`, 2 `.htm`), 478 MB.
+
+1. **Find exact duplicates by md5 over the image files** (`.jpg .jpeg .png .bmp .gif .tif .tiff`); skip `.DS_Store` and `Thumbs.db`. Result: 452 groups, 522 extra copies (26.93 MB), no group between top-level folders, 435 groups between sub-folders of one top folder (mostly `series`), the rest inside a folder. Header-sniff every image first (0 fake).
+2. **A set is a folder that holds images.** Never remove single copies from sets that each also have unique pictures; removing a picture from one set breaks that set. The 98 groups left at the end are of this kind (2–24 folders each; e.g. `luoluo.jpg` in 24 `series` folders). Resized or re-saved copies are not detected.
+3. **Remove whole folders that are fully contained in another folder:** sort the sets by image count (descending), keep a set unless its hash set is a subset of an already kept set. Remove only folders that contain nothing but images and cache files (else hold it back and list it). Result: 19 folders, 241 images, 12.37 MB (3 identical sets, 16 subsets; 17 in `series`, 2 in `wet123`).
+4. **Remove extra copies of a picture inside one kept folder** (the same bytes under two names; keep the first name in sorted order): 151 images, 8.54 MB.
+5. **Quarantine, do not delete:** move to the scratchpad keeping relative paths, write a removed → kept TSV, assert before moving that the kept copy has the same md5.
+6. **Verify:** every quarantined image has a byte-identical kept copy (0 without); rescan: 5,001 images left, 98 cross-folder groups, 0 fake, 0 empty folders. Folder 478 MB → 457 MB.
+7. **Delete the quarantine only on request** after repeating the byte check; the quarantine also holds `Thumbs.db` caches from the removed folders (17), which are not logged and are not images.
+8. **Order of work:** folder-level containment first, then within-folder copies (the second step does not change which hash sets are contained).
