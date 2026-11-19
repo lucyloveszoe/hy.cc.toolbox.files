@@ -496,3 +496,30 @@ Findings worth remembering:
 - **Fix for a fake image** (on the user's word): replace the `<img …>` tag in the report with the marker `[image missing]` (the tag is followed by `<br>`, as in other reports); move the file to the scratchpad; in the manifest blank `output` and append ` [image file was not a picture]` to `status`; lower `images_copied` of the owning summary row(s) by 1 (rows that were repointed to the same report must be lowered too). Back up the report and CSVs first.
 - **Cross-root CSV rows.** CSVs of older roots (`wet`, `russian`, `maichun`, `MCJT`) contain `output` paths like `../Reports.series-2026.11.17/html/<folder>/…` because reports were moved into the series library earlier. A de-duplication or move inside the series library therefore breaks rows in **other** roots (73 rows were left pointing at removed files: 7 + 53 in `wet`, 1 + 4 in `maichun`, 1 + 7 in `MCJT`). Rule: after any move, rename or de-duplication, scan **all** CSVs in `data.done` (`*/*.csv` and `*/html/*.csv`), not only the touched folder, and require 0 missing outputs. Repair with the removed → kept log (normalize the path relative to the CSV's folder, then `os.path.relpath` back).
 - **Final check script idea** (for the future `merge_report_folders.py`): per root, links, orphans, header sniff of every image, CSV outputs, exact duplicates; then a root-independent pass over all CSVs for missing outputs.
+
+## 31. Reviewing and removing near-duplicate reports (2026-11-18)
+
+Procedure used on all seven roots (`2009_02_03_Report`, series `html`, `2010_07.Reports`, `2009_04_23_ss+2009_05_15_Report`; the other roots had no near pairs left). Near pairs are found with the section 28 test (≥ 300 characters, Jaccard > 0.7, containment > 0.8) over the reports that are not exact duplicates.
+
+1. **Per pair print**: both titles and folders, text lengths, unique image counts, the images that are **common** (by md5), the images **only in the first** and **only in the second**, and the size of each text difference. Counts only; no bodies.
+2. **Classify before recommending**:
+   - *No common image* (50 `fdz` pairs): different posts that share forum boilerplate. Keep.
+   - *Removable copy has no image the other lacks* (byte-contained) **and** the kept copy has the same or more text: remove the thinner copy. Identical images: keep the longer text, then the longer name.
+   - *Mixed* (each copy has something the other lacks: extra images vs extra text, or two different boards/posters): keep both.
+   - Pages of one board thread (`come2meAsia` `dcboard.plN`) look alike but are different pages: keep all, ask.
+3. **Check the images before moving** (hard rule): every image of the removed report that is used only by it must be byte-identical to an image of the kept report. If one is not, do not remove the report. In `2009_02_03_Report` a "thin" copy (2 images) looked like a subset of the 18-image copy, but its 2 pictures were not in it; the first run left 2 orphan images, and the report was restored.
+4. **Quarantine** (section 25): move the report and its exclusive images, repoint the CSV rows of **every** CSV in `data.done` (section 30) by resolving each `output` to an absolute path and writing it back with `os.path.relpath`, set `images_copied` of repointed summary rows to the kept report's count of unique image files, back up the CSVs, and write a removed → kept TSV.
+5. **Re-audit** (links, orphans, header sniff, summary and manifest, exact duplicates, near pairs) and scan all CSVs for missing outputs. Nothing may be left orphaned or mismatched.
+6. **Delete a quarantine only on request** after a byte check of every image against its kept copy and an existence check of every kept report. Per-root `images_copied` counts unique file names (a byte-identical pair under two names counts twice).
+
+Results of this run: 2009_02_03 — 2 reports removed, 1 pair restored; series html — 12 removed (143 images); 2010_07.Reports — 10 removed (97 images); 2009_04_23 — 2 removed (3 images). Final state: 1,548 reports, 11,925 images, 0 exact duplicates, 0 broken links, 0 orphans, 0 missing CSV outputs over 50 CSV files; 70 near pairs kept on purpose.
+
+## 32. Checklist for the next merge or clean-up
+
+1. Re-list the target and the source (the user rearranges folders between turns).
+2. Dry run: exact / near / new; image byte checks; name clashes; sibling folders and series folders (section 23).
+3. Copy, never move; rewrite links; trim forum footers; update summary and manifest.
+4. Audit the root (section 27) and **all CSVs** in `data.done` (section 30).
+5. Quarantine instead of delete (sections 25, 31); delete only on request after the byte/text check; print backup and log paths.
+6. Remove empty folders only after listing them.
+7. Update this document with anything new, commit, and push only when asked.
