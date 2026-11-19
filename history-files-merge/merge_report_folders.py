@@ -272,8 +272,9 @@ def cmd_audit(args):
             empties.append(os.path.relpath(r, root.path))
     print('empty folders:', empties or 'none')
     issues['empty folders'] += len(empties)
-    print('ISSUES:', dict((k, v) for k, v in issues.items() if v) or 'none')
-    return 1 if issues else 0
+    found = {k: v for k, v in issues.items() if v}
+    print('ISSUES:', found or 'none')
+    return 1 if found else 0
 
 
 def audit_csvs(root, d, hs, ims, issues):
