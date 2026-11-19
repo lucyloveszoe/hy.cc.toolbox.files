@@ -454,3 +454,38 @@ De-duplication of exact duplicate reports across the root:
 - A "move" that finds the target name already taken, or a "merge" with nothing new, is reported as such with counts; do not invent work.
 - Always give the backup and deleted-list paths (scratchpad) after a destructive step.
 - Scripts used this session were throw-away scratchpad scripts (`merge_*.py`, `dedupe_2010_07.py`). Candidate for a project script: one `merge_report_folders.py` implementing section 23 (dry run + `go`).
+
+## 27. Auditing the finished report roots (2026-11-18)
+
+Roots audited with the section 25 checks: `2008_10_17_sss.Report`, `2008_10_30_sss.Report`, `2008_10_30_sss.Report.Single`, `2009_02_03_Report`, `2009_04_23_ss+2009_05_15_Report`, `2010_07.Reports`, `Reports.series-2026.11.17/html`. Three layouts exist; use the matching checker:
+
+| Layout | Used by | Reports | Images | CSVs |
+|---|---|---|---|---|
+| `reports/<folder>/…`, `images/<folder>/…` | the `20xx_xx_xx_*.Report` roots | link `../../images/<folder>/…` | flat per folder | `<folder>_summary.csv`, `<folder>_images_manifest.csv` at the root, `output` relative to the root |
+| `<folder>/*.html`, `<folder>/images/<folder>/…` | `2010_07.Reports`, series `html/` | link `images/<folder>/…` | | CSVs next to the folders |
+| `reports/<report>.html`, `images/<report>/NNN.ext` + `manifest.csv` (`image,original_url`) | `….Report.Single` | link `../images/<report>/NNN.ext` | one folder per report | per-report manifest only; no summary |
+
+Findings worth remembering:
+- A report can live in another folder than the CSV that lists it (`russian` report stored in `reports/mcjt`, listed in `russian_summary.csv`). Check "listed exactly once" over **all** CSVs of the root, not per folder.
+- `images_copied` is the number of unique files, not of `<img>` tags (a repeated image gives a lower number).
+- Manifest rows `copied` with an empty `output` must carry the tag `[output file no longer in data.done]`.
+- `maichun` inside a forum URL in the post text is content, not noise.
+- Rows of txt pages merged into `locations` share one `output`; that is not a duplicate. Do not write a remark such as ` (merged)` into `output`: use a `note` column and a plain path (`mcu_summary.csv` was fixed this way). The user moves `txt/` folders between turns (`txt/tmp/category` → `txt/category`): re-resolve the path before writing it.
+- Report counts after every step: html, images, broken, orphans, CSV rows, missing outputs, exact-duplicate groups.
+
+## 28. Near-duplicate test and de-duplication rules (corrections, 2026-11-18)
+
+- **Near-duplicate test:** "8-gram share of the smaller page > 0.8" gives false hits when pages carry boilerplate (186 hits in `fdz`, mostly different posts that share ~1,200 characters of forum chrome; short pages match everything). Use pages with ≥ 300 characters and require **Jaccard > 0.7 and containment > 0.8**. Print titles, text lengths and image counts for each pair and review by hand. Never remove near-duplicates automatically.
+- **A story can be a section of a compilation** (`平生第一次肛交成功记`, 1,725 chars, vs a 31,892-character report: 99 % of its text and one identical image). Remove only after the user agrees.
+- **Keep rule for exact duplicates** (same normalized text and same image-name sequence): more unique images first, then the longest file name, then folder priority, then path order. Exact duplicates have equal image counts, so in practice the longest name wins.
+- **Same text and same image names does not mean same bytes.** In the series `html` root 9 images of removed reports were larger JPEGs (same pixel size, about twice the file size; a lower-quality copy had been kept). Before deleting a quarantine, hash every quarantined image against its kept copy; for each difference compare dimensions and sizes, report them, and on the user's word copy the larger file over the kept one under the **kept** name (back the replaced file up first). The label of a differing pair must be the **kept** side's folder (a pair I called "学生妹" lived in `胜地`).
+- **Quarantine procedure:** move duplicate reports plus the images used only by them to a scratchpad folder with the same relative paths; write a `removed → kept` TSV; back up all CSVs; repoint CSV rows (summary `output` → kept report, manifest `output` → kept image by position in the image sequence); also move a per-report image folder that is left with only `manifest.csv`; re-run the audit; delete the quarantine only on request after the byte/text check above.
+- **Merging a source into an existing target** can re-add what was moved out earlier (section 23, step 4) and can find **nothing new** (a plain older copy): say so, change nothing, offer to delete the source.
+- **Empty folders:** list first (`.DS_Store` does not count), remove with `rmdir`/`rm -r` only when no file is inside; an "empty `redarmy_II`" requested for merging was reported as empty, then removed on request.
+
+## 29. Working habits (continued)
+
+- Re-resolve every path the user gives: folders were created, moved or emptied between turns (`txt/tmp/…`, five `夜游` files, `redarmy_II`).
+- After each destructive step print the backup path and the removed→kept log path.
+- When a verification fails (9 differing images), stop, show the evidence and ask; do not delete anyway.
+- Commit the rules doc only on request; push only on request.
