@@ -551,3 +551,25 @@ python merge_report_folders.py remove-source <source-folder> <target-folder> [--
 - `remove-source` refuses unless every report has ≥ 0.90 text coverage in the other folders and every image has a byte-identical copy; with `--go` it backs up the two CSVs, writes the file list and deletes the folder.
 - Tested read-only on all roots (same numbers as the manual audits) and with `--go` on synthetic copies in the scratchpad (dedupe: 21 groups quarantined and re-audited clean; merge: 4 new reports added, near copy listed, `remove-source` correctly refused because of the near copy).
 - Not covered (by design): replacing near copies, splitting compilations, txt routing (sections 18, 24), fake-image repair (section 30), swapping larger images (section 28).
+
+## 35. Auditing and fixing the txt library (2026-11-19)
+
+Audit of `Reports.series-2026.11.17/txt/{locations,series,category}` (50 txt/manifest pairs, 1,422 stories), done with the section 19 checks:
+
+- **Structure:** both files exist; txt is UTF-8, LF, no BOM, ends with exactly one `\n`; manifest has a BOM, LF endings and the expected columns (`no,file,start_line,end_line,chars` or the 8 series columns); numbering 1..N; first story at line 1; `end ≥ start`; stories exactly one blank line apart; last story ends on the last line; `chars == len('\n'.join(lines[start-1:end]))`; no story starts or ends on a blank line; every non-empty line covered.
+- **Noise scan:** U+FFFD, NBSP, `&#NNN;`, `INCLUDEPICTURE`, `HYPERLINK`, `本帖来源`, `买春堂版权所有`, `招财进宝`, `关闭注册`, control characters, private-use characters.
+- **Duplicates:** whitespace-free, lower-cased md5 of every story over all files. The `category/` staging files (`mcu`, `学生妹`) repeat stories that are in `locations` (5 groups, left by the user's decision).
+- **Titles vs first line:** listed for a manual look only (35; compilations are known to differ).
+
+Findings and fixes:
+1. **15 `series` manifests had CRLF** → converted to LF (BOM kept). Check the line endings of every manifest; `locations` and `category` were already LF.
+2. **Forum footers in title lines of old `locations` stories** (` - 吉林春色 - -东北春色- - 皇家帝国花园【暂时关闭注册】`, also `【长期关闭注册】`): 35 titles trimmed with `\s+-\s+[^\s-]*春色.*关闭注册[】\]]?\s*$`; the manifest `file` names were rebuilt from the trimmed title and `chars` recomputed; line numbers do not change. One body line carried the spam phrase `ＭＣ军团（招財進寶）[关闭注册]` plus an ASCII garbage run: phrase and run removed. Back up the txt and manifest first.
+3. **Not noise, leave:** `作者: 招财进宝888` (a nickname) and the 15 private-use characters in 3 files (source mojibake).
+4. **Trimming can create a new duplicate:** removing a footer made `陕西` #19 identical to `category/学生妹` #11, whose title had been trimmed earlier. Compare the md5 groups again after any text clean-up.
+5. **Result:** 50 pairs / 1,422 stories, 0 structural problems, 0 CRLF manifests, spam text gone except the items in 3; 5 duplicate groups (category vs locations).
+
+## 36. CSV paths after folders are moved or renamed (2026-11-19)
+
+- Every `output` is relative to the CSV's folder and must stay relative (0 absolute or machine-specific paths in 116 CSVs and about 80,000 cells; 55 rows point into the txt library with `..` paths, e.g. `../Reports.series-2026.11.17/txt/locations/安徽.txt`).
+- **Renaming or moving a report root changes the relative paths of every other CSV that points into it** (the series `html` folder moved three times in a day: into `Downloads`, renamed, then into `data.done`; 462 rows broke each time in 11 CSVs, including the 23 `mcu_summary.csv` rows that point at `txt/category/mcu.txt`). After each move: resolve every `output` of every CSV under `data.done` (and the moved folder), repoint rows whose old resolved path starts with the old folder name, and re-scan for 0 missing outputs. A moved CSV must be resolved against its **old** folder before being rewritten against the new one.
+- Use `merge_report_folders.py audit <root> --data-dir <data.done>` for the all-CSV check; it reports missing outputs but does not repair them.
