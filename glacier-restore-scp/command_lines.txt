@@ -1,0 +1,49 @@
+source venv/bin/activate
+
+================== Glacier Restore 
+
+python glacier_restore.py <bucket> <prefix>
+    [--days DAYS]                       # default 7
+    [--tier {Bulk,Standard,Expedited}]  # default Bulk
+    [-x PATTERN]...                     # replaces default excludes
+    [--add-exclude PATTERN]...          # added to defaults
+    [--profile PROFILE] [--region REGION]
+    [--execute]
+    
+python glacier_restore.py yu.vbackup.s  records/2018.06.18/report_mcjt/   --days 2 --execute --add-exclude "Thumbs.db" --add-exclude ".DS_Store"
+python glacier_restore.py yu.vbackup.s  records/2018.06.18/report_word_doc_txt_imgs/    --days 2 --execute --add-exclude "Thumbs.db" --add-exclude ".DS_Store"
+python glacier_restore.py yu.vbackup.s  records/2018.06.18/report_zips_full/   --days 2 --execute --add-exclude "Thumbs.db" --add-exclude ".DS_Store"
+python glacier_restore.py yu.vbackup.s  records/2018.06.18/report_zips_single  --days 2 --execute --add-exclude "Thumbs.db" --add-exclude ".DS_Store"
+
+================== S3 Mirror S3 objects (including restored original Glacier Objects) 
+
+python s3_mirror.py <bucket> <prefix> <dest>
+    [-x PATTERN]...                     # replaces default excludes
+    [--add-exclude PATTERN]...          # added to defaults
+    [--profile PROFILE] [--region REGION]
+    [--dry-run]
+    
+python s3_mirror.py  yu.vbackup.s  records/2010_01_17_HPLaptopBack/Report/  2010_01_17_HPLaptopBack.Report   --region us-east-1 --add-exclude "Thumbs.db" --add-exclude ".DS_Store"
+python s3_mirror.py  yu.vbackup.s  records/2010_04/Reports/  2010_04.Reports   --region us-east-1 --add-exclude "Thumbs.db" --add-exclude ".DS_Store"
+python s3_mirror.py  yu.vbackup.s  records/2010_07/Report/  2010_07.Report  --region us-east-1 --add-exclude "Thumbs.db" --add-exclude ".DS_Store"
+python s3_mirror.py  yu.vbackup.s  records/2010_12/Report/  2010_12.Report   --region us-east-1 --add-exclude "Thumbs.db" --add-exclude ".DS_Store"
+
+python s3_mirror.py  yu.vbackup.s  records/2011_04_06/Report/		 2011_04_06.Report	  --region us-east-1 --add-exclude "Thumbs.db" --add-exclude ".DS_Store"
+python s3_mirror.py  yu.vbackup.s  records/2011_06/reports/		2011_06.Report	  --region us-east-1 --add-exclude "Thumbs.db" --add-exclude ".DS_Store"
+python s3_mirror.py yu.vbackup.s  records/2011_09_19/Report/		2011_09_19.Report		  --region us-east-1 --add-exclude "Thumbs.db" --add-exclude ".DS_Store"
+python s3_mirror.py  yu.vbackup.s  records/2011_12_30/		2011_12_30.Report		  --region us-east-1 --add-exclude "Thumbs.db" --add-exclude ".DS_Store"
+
+python s3_mirror.py yu.vbackup.s   records/2012_03_28/report/		2012_03_28.Report	  --region us-east-1 --add-exclude "Thumbs.db" --add-exclude ".DS_Store"
+python s3_mirror.py  yu.vbackup.s   records/2012_07_15/reports/	2012_07_15.Report		  --region us-east-1 --add-exclude "Thumbs.db" --add-exclude ".DS_Store"
+python s3_mirror.py  yu.vbackup.s  records/2012_12_24/Reports/		2012_12_24.Report		  --region us-east-1 --add-exclude "Thumbs.db" --add-exclude ".DS_Store"
+
+python s3_mirror.py  yu.vbackup.s  records/2014_06_10/Reports/  2014_06_to_10.Report   --region us-east-1 --add-exclude "Thumbs.db" --add-exclude ".DS_Store"
+
+python s3_mirror.py  yu.vbackup.s  records/2017.07.17_SS/Reports/  2017.07.17.Report   --region us-east-1 --add-exclude "Thumbs.db" --add-exclude ".DS_Store"
+python s3_mirror.py  yu.vbackup.s  records/2017.07.17_SS/ReportZips/   2017.07.17.ZipReport   --region us-east-1 --add-exclude "Thumbs.db" --add-exclude ".DS_Store"
+
+python s3_mirror.py  yu.vbackup.s  records/2018.06.18/report_mcjt/    2018.06.18_report_mcjt     --region us-east-1 --add-exclude "Thumbs.db" --add-exclude ".DS_Store"
+python s3_mirror.py  yu.vbackup.s  records/2018.06.18/report_word_doc_txt_imgs/    2018.06.18_report_word_doc_txt_imgs    --region us-east-1 --add-exclude "Thumbs.db" --add-exclude ".DS_Store"
+python s3_mirror.py  yu.vbackup.s  records/2018.06.18/report_zips_full/   2018.06.18_report_zips_full    --region us-east-1 --add-exclude "Thumbs.db" --add-exclude ".DS_Store"
+python s3_mirror.py yu.vbackup.s  records/2018.06.18/report_zips_single    2018.06.18_report_zips_single     --region us-east-1 --add-exclude "Thumbs.db" --add-exclude ".DS_Store"
+
