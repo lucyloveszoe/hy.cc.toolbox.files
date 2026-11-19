@@ -1,0 +1,2 @@
+- [Never delete outputs](feedback-never-delete-outputs.md) — list before rm/overwrite; user lost results once
+- [history-files-merge playbook](history-files-merge-playbook.md) — rules doc location and output layout for similar data sets
