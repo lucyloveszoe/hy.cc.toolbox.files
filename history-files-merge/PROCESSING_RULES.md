@@ -787,3 +787,23 @@ Input: `data.done/mc_2026.11.19/images/<folder>/` (33 folders, 5,604 files, 928 
 5. **Fake images** (section 30) in this set: six 0-byte files (identical, so they merged into one) and one XML error stub (345 bytes). No report linked them, only manifest rows ("copied: unreferenced by any page"), so there is no `<img>` to replace. Fix on the user's word: move the 2 files to the scratchpad, blank `output` of the 7 rows (2 CSVs: `mcjt_胜地`, `Great_Redarmy_C`), append ` [image file was not a picture]` to `status`, remove the 2 rows from `images_merged.manifest.csv` and renumber. Final: 4,266 images, 4,266 manifest rows, 0 missing outputs (104,537 over 111 CSVs).
 6. **Not done:** extension check against the header (section 40.5); the 98-style "shared by several sets" question no longer exists after the merge; resized copies are not detected.
 7. Scratchpad (`images_old_quarantine/`, `bak_csv_images/`, `bak_csv_fake/`, `quar_fake_images/`, `images_removed_to_kept.tsv`, `merge_images.py`) is deleted only on the user's word after a byte check, and is lost on reboot.
+
+## 48. Merging `Great_Redarmy`, `_B`, `_C` and flattening `reports/` (2026-11-20)
+
+Roots under `data.done/mc_2026.11.19/html/topics/<root>/{reports,images,<root>_summary.csv,<root>_images_manifest.csv}`.
+
+**Merge (section 23 applied across roots; `merge_report_folders.py merge` only works between folders of one root, so a scratchpad script did the dry run).** Target `Great_Redarmy` (51 reports). Per report: normalized text + md5 sequence of its images; near = 8-gram share > 0.6.
+- `_B` (40): 35 exact, 4 near (each a subset of the target's images, 1-4 fewer), 1 new. `_C` (39): 25 exact, 14 near (13 same images in the same order, same text length; 1 mixed). **Nothing new:** the "new" B report also lives in `html/merges/mcjt_02` (same picture, 96 % shared text), so it is a duplicate by section 23 step 4.
+- Encoding loss (`??` where the original has full-width letters) makes a copy worse even when it has one more image: keep the target, do not replace.
+- Check before offering to delete: every image hash of the source exists in the target (658 of 659 and 709 of 710; the one left is the picture of the mcjt_02 report).
+- **Quarantine, not delete:** both root folders moved whole (reports, images, CSVs) to the scratchpad. Check first which CSVs point into them (only their own did) and whether any report links them (none).
+- **Tagging the rows:** the roots' own CSVs go with them, so carry their rows into the target's CSVs (section 23 step 6): summary rows only for pages not already in the target, `output` blank, new trailing `note` column `[duplicate of <target>; <root> moved to quarantine]`; manifest rows only for source images not listed, `output` blank, `status` + ` [output file no longer in data.done]`. Page names that already exist in the target add no row.
+
+**Why `reports/` was nested (3 levels) and the flat fix.**
+- `doc_to_html.py` writes `reports/<stem>.html` + `images/<stem>/NNN.ext` (+ `manifest.csv`), `process_html_posts.py` writes `reports/<source folder>/…` and mirrors sub-folders of the source (`redarmy_II`). In one root they end up side by side.
+- Flatten on request: move every html to `reports/`; names that clash (compare NFC + lower case) are different pages, not copies, so the second one gets the suffix ` (<sub-folder>)` (section 23 step 5); check by text and image count first, an exact copy would be skipped instead.
+- Rewrite only `<img src>`: resolve with the old folder, `os.path.relpath` to the new one, write with `html.escape(…, quote=True)` (no percent-encoding, section 40.5). The images stay where they are. Back up pages and summary first, repoint the summary `output` (several rows can share one report), then `rmdir` the emptied folders.
+- Check: links resolve (1,116, 0 broken), orphan list holds only the per-report `manifest.csv` files written by `doc_to_html` (they are not images), every `output` exists.
+- **`merge_report_folders.py audit` does not recognise a root with `reports/*.html` and no sub-folder** (prints `html 0`); use an own link/orphan check there.
+
+**Fake or deleted files between turns.** After the image merge of section 47 the user removed 21 files from `images/`; the all-CSV check showed 55 missing outputs (0 before). The check, not the merge, found it: always re-run the all-CSV check at the start of a turn and decide with the user between tagging the rows (section 20) and restoring from the quarantine via the removed → kept TSV.
