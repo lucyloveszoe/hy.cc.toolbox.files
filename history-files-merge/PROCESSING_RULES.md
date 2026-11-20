@@ -841,3 +841,24 @@ Same procedure and decision order as section 49 (script `merge_shen.py` = `merge
 - **37 manifest rows pointed out of the source root into the shared `images/`** and were carried into the target manifest (section 48 lesson); without it the shared folder would have had unreferenced images. 6 summary rows and 397 manifest rows were added in total, 58 images copied.
 - Result after quarantining the source root: 8 reports, 423 images, 423 links, 0 broken, 0 orphans, 101 CSVs, 101,244 outputs, 0 missing, shared `images/` 0 unreferenced. Quarantine `quar_shen/`, log `shen_decisions.tsv`, backups `bak_shen/` and `bak_shen_flatten/` are in the scratchpad.
 - Generic helper idea: both merge scripts differ only in `TG`, `SRC`, `RP`; a project script `merge_topic_roots.py <target> <source>...` (dry run, then `--go`) would replace them.
+
+## 52. Noise pass over finished report roots (`Great_沈公子`, `Great_上海狼在俄罗斯`, `Great_Redarmy`, 2026-11-20)
+
+Merged reports can still carry noise that the pipeline's `tidy()` missed (pages added from other batches). Scratchpad scripts `noise_scan.py` (read-only counts), `noise_fix.py` (pass 1) and `noise_pass2.py` (pass 2); every pass is a dry run until `--go` and backs up each page it rewrites.
+
+**Scan (read-only, visible text only; skip `<head>`, `<script>`, `<style>`):** watermark (`本帖来源`, `买春堂版权所有`, `www.maichun.org`), spam phrases, edit stamps, reply notices, `INCLUDEPICTURE`/`HYPERLINK`, NBSP/U+2028/9, U+FFFD, private-use, control and zero-width characters, `&#N;`, board footers, and garbage-token runs (≥ 4 short tokens). Result: `Great_Redarmy` clean, the two others had garbage, stamps, notices and footers. `[image missing]` is a documented marker: keep. A `www.maichun.org` inside a post URL is content: keep. `os.listdir` also returns `.DS_Store`; filter `.html` before reading as UTF-8.
+
+**Pass 1 (per text node = per line between `<br>`):** split the html with `re.split(r'(<[^>]*>)')`, clean only text nodes, `html.unescape` first and `html.escape(quote=True)` after (the garbage carries `&quot;` and `&#x27;`). Per line: `clean_loose_txt.strip_edges`, `doc_to_txt.strip_tail`, then the stamp/notice regexes and control-character cleanup of `tidy()`. Then collapse 3+ `<br>` to 2 and drop `<br>` runs before `</section>` (4.4).
+- Forms found that the old regexes missed: edit stamp **without brackets** (`本帖最后由 X 于 date 编辑`, `EDIT2`); standalone line `本帖隐藏的内容` (needs `re.M`); `如果您要查看本帖隐藏内容请回复` and `需要积分高于 N 才可浏览` (`REPLY2`).
+- Counts: 548 + 422 garbage lines, 8 stamps, 23 notices.
+
+**Pass 2:** the garbage also leaves lines that are a single 1-2 character token (`-`, `+`, `8`, `%`; 340 + 197) and one run of short tokens without a mixed token (`, Y9 v0 r6 L8 Y`). Remove a line that is only 1-2 printable ASCII characters (or a ≥ 4-token run), has no CJK and is not `[image missing]`; only in roots that had garbage (two lone `p` lines in the clean root were left).
+
+**Footer** `…买春堂` / `…买春堂 - Powered by Discuz!` at the end of `<title>`, `<h1>` and the file name (regex `\s*买春堂(?:\s*-\s*Powered by Discuz!)?\s*$`; sections 23 step 5 only covered the `春色` footer). Rename, check 0 clashes (NFC, lower case, no whitespace) first, repoint the summary `output` (23 pages), back up pages and CSV.
+
+**Safety checks that decided the rules:**
+1. The CJK characters of each page must be unchanged, except those of the removed stamps/notices (checked as a multiset: removed CJK ⊆ CJK of the regex matches, 0 beyond).
+2. Compare old and new lines: no removed fragment may contain a ≥ 3-letter word, a ≥ 4-digit number or CJK (893 lines, 0 suspicious).
+3. After the run: garbage scan 0, pages well-formed (`</html>`, balanced `<section>`), 0 NBSP/U+2028/9/U+FFFD, links and orphans, all-CSV outputs (101,244, 0 missing), shared `images/` 0 unreferenced.
+
+Backups in the scratchpad: `bak_noise/`, `bak_footer/`, `bak_noise2/` (lost on reboot).
