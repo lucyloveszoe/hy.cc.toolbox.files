@@ -159,6 +159,9 @@ def get_posts(root: Node, page: Path):
             author = next((re.sub(r"\s+", " ", text_of(c)).strip() for c in t.walk()
                            if c.tag == "cite"), "")
             body = next((c for c in t.walk() if "postmessage" in c.cls()), None)
+            if body is None:  # older Discuz: pid table, body = div.t_msgfont / id=postmessage_N
+                body = next((c for c in t.walk() if "t_msgfont" in c.cls()
+                             or c.attrs.get("id", "").startswith("postmessage_")), None)
             imgs: list = []
             txt = tidy(render(body, page, imgs)) if body is not None else ""
             posts.append({"author": author, "text": txt, "imgs": imgs})
@@ -301,7 +304,7 @@ def get_posts(root: Node, page: Path):
         return posts
     # (m) PHPWind variants without ids: <div class="tpc_content"> per post (yhsn.net)
     for t in root.walk():
-        if t.tag in ("div", "span") and "tpc_content" in t.cls():
+        if t.tag in ("div", "span", "td") and "tpc_content" in t.cls():
             imgs = []
             txt = tidy(render(t, page, imgs))
             if txt or imgs:
@@ -484,6 +487,56 @@ def get_posts(root: Node, page: Path):
             posts.append({"author": "", "text": txt, "imgs": imgs})
         if posts:
             return posts
+    # (ac) Discuz 4.x/5.x "altbg" boards (mcjt_old/mcjt_02/mcjt_html_04): one <tr> per post with two <td>:
+    #      author cell (a.bold|span.bold + span.smalltxt user info) and the body cell
+    for tr in root.walk():
+        if tr.tag != "tr":
+            continue
+        tds = [c for c in tr.children if isinstance(c, Node) and c.tag == "td"]
+        if len(tds) != 2:
+            continue
+        a = tds[0]
+        bold = next((x for x in a.children if isinstance(x, Node) and x.tag in ("a", "span") and "bold" in x.cls()), None)
+        if bold is None or not any(isinstance(x, Node) and x.tag == "span" and "smalltxt" in x.cls() for x in a.children):
+            continue
+        imgs = []
+        posts.append({"author": re.sub(r"\s+", " ", text_of(bold)).strip(),
+                      "text": tidy(render(tds[1], page, imgs)), "imgs": imgs})
+    if posts:
+        return posts
+    # (ad) Tianya (天涯社区) threads: one <div class="post"> per post (replies included)
+    for t in root.walk():
+        if t.tag == "div" and "post" in t.cls() and not any(
+                c.tag == "p" and c.attrs.get("id", "").startswith("post_content_") for c in t.walk()):
+            imgs = []
+            txt = tidy(render(t, page, imgs))
+            if txt:
+                posts.append({"author": "", "text": txt, "imgs": imgs})
+    if posts:
+        return posts
+    # (ae) forum pages with <div class="xcontent"> per post ("N楼 date 个人资料短消息…" header line)
+    for t in root.walk():
+        if t.tag == "div" and "xcontent" in t.cls():
+            imgs = []
+            txt = tidy(render(t, page, imgs))
+            txt = re.sub(r"^\s*\d+楼[^\n]*?个人资料[^\n]*\n?", "", txt).strip()
+            if txt:
+                posts.append({"author": "", "text": txt, "imgs": imgs})
+    if posts:
+        return posts
+    # (ab) old Baidu Tieba threads (tieba.baidu.com/f?kz=...): <div class=post> per floor; author = li.name,
+    #      body = <p id=post_content_N> inside <td class=content> (the floor number sits in p.floor)
+    for t in root.walk():
+        if t.tag == "div" and "post" in t.cls():
+            body = next((c for c in t.walk() if c.tag == "p" and c.attrs.get("id", "").startswith("post_content_")), None)
+            if body is None:
+                continue
+            author = next((re.sub(r"\s+", " ", text_of(c)).strip() for c in t.walk()
+                           if c.tag == "li" and "name" in c.cls()), "")
+            imgs = []
+            posts.append({"author": author, "text": tidy(render(body, page, imgs)), "imgs": imgs})
+    if posts:
+        return posts
     # (b) photo-album pages: the photos sit in <div class="phototable212"> blocks
     imgs, parts = [], []
     for t in root.walk():
