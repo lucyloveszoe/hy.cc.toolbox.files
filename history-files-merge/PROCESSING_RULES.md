@@ -886,3 +886,23 @@ Same procedure as sections 49-54 (script `merge_cs.py`, 4,020 library reports co
 - **State it and change nothing:** the script still runs its CSV step and **writes an empty `note` column into the target summary** even when no row is added (twice here: after the merge and after the quarantine step). Compare each target CSV with its pre-run backup (`cmp`) and restore the backup when nothing else changed.
 - **Quarantine on request** (here: "quarantine it and tag the rows"): same steps as section 48 (carry source rows into the target CSVs when the page / image is not listed there; blank `output`; `status` + ` [output file no longer in data.done]`; carry rows pointing out to the shared `images/` when no other manifest lists the file; back up the four CSVs; move the whole root to the scratchpad). For an older copy the source's page and image rows are already listed in the target under the same names, so 0 rows were added and 0 carried; check it, do not assume it.
 - Result: target 16 reports, 283 images, 285 links, 0 broken, 0 orphans, 0 name clashes; 95 → 93 CSVs (the two CSVs left with the root), 99,221 outputs, 0 missing, shared `images/` 0 unreferenced, noise scan clean. Quarantine `quar_cs/`, backups `bak_cs/`, `bak_cs_flatten/`, `bak_cs_quar/`, log `cs_decisions.tsv` (scratchpad).
+
+## 56. Flatten and clean every root under `html/topics` (2026-11-20)
+
+Request: "for all sub-folders apply the flat layout as `Great_Redarmy`, also clean up noise". Scratchpad scripts `inventory.py`, `flatten_all.py`, `noise_*_all.py`, `noise_pass1b.py`, `footer_all.py`, `chk_all.py` (dry run unless `--go`).
+
+**Inventory first (read-only):** per root count html in `reports/` (top) and in sub-folders (nested), non-html files, and noise (garbage lines, footers, stamps/notices). 29 roots: 6 flat, 22 nested, 1 without `reports/` (`J情一夜`, images only: skip and say so).
+
+**Flatten all (`flatten_all.py`):** for each nested root move every html to `reports/` (images stay in `images/…`), rewrite only `<img src>` (`relpath` from the new location, `html.escape`), back up pages and every CSV it changes, remove the emptied folders (delete `.DS_Store`, then `rmdir`). Dry run checks: name clashes (NFC, lower case, no whitespace) per root, name length (longest 248 bytes, limit 255), local `<a href>` links (0), CSV rows in **any** CSV under `data.done` that resolve into the pages to move (build one old → new map and repoint all of them; here only the roots' own 22 CSVs, 1,295 rows). Result: 1,285 reports.
+
+**Check after any bulk change (`chk_all.py`):** per root links / orphans (ignore `manifest.csv` of `.doc` image folders) / nested / well-formed; over all CSVs: outputs missing; shared `images/` unreferenced. Final: 28 roots, 18,431 links, 0 broken, 0 orphans, 0 nested, 93 CSVs, 99,221 outputs, 0 missing.
+
+**Noise cleanup** (sections 52 and 54 applied to all roots; the safety checks decide):
+- pass 1 (`noise_fix_all.py`): reply notices 37 hits in 34 files, 4 private-use characters (user asked for noise characters, so the source mojibake is removed now; before it was left as is), spam phrase 0; removed CJK only inside notices (0 beyond), 0 suspicious fragments.
+- **pass 1b (`noise_pass1b.py`), narrow:** whole lines `本帖隐藏的内容` and `以下内容需要积分高于 <number incl. 8.88888888889E+13> 才可浏览` (the old `\d+` missed the scientific number): 3 lines in 3 files.
+- **Do not remove `以下内容需要回复才能看到`:** a first dry run with it matched dozens of `Great_Redarmy` pages (3,179 lines in 1,388 files over all roots). It is Discuz placeholder text, not one of the defined notice forms; removing it would rewrite the reference root. Left in place; remove only on the user's word.
+- **Footer peel loop (`footer_all.py`):** strip footer elements from the end of the stem, title and h1 one at a time until nothing matches (keep a trailing ` (<root>)` suffix): `★…★ - 【买春堂】…Powered by Discuz!` banners (`军 密 档 案`, `江 苏 军 区`), `<name>春色 - … 】`, `Powered by Discuz!`, and a spaced board name with optional `[…]` (`(?:[一-鿿]\s+){2,}[一-鿿]\s*(?:\[[^\]]*\])?`, e.g. `江 苏 原 创 信 息`, `九 九 情 色 论 坛 [论坛开放注册]`). A first single-regex version left these board names behind (seen in the dry-run preview): always read the preview of the new names. 25 reports in 4 roots, 0 clashes, 25 summary rows repointed.
+- **Pass 2 (1-2 character lines): skipped.** Dry-run listing over 16 roots: 251 lines, all real (ratings `80`/`88`/`90`, numbering without a dot `1`/`2`/`3`, `OK`, `PK`, `MM`, `<A`). Section 54 rule 3 holds: apply it only to roots with hundreds of garbage lines.
+- Kept: `ML MY KB`-style runs, `www.maichun.org` inside post URLs, `[image missing]`.
+
+Backups in the scratchpad: `bak_flat_all/`, `bak_noise_all/`, `bak_noise1b_all/`, `bak_footer_all/`.
