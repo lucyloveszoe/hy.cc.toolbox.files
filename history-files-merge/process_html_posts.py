@@ -221,7 +221,7 @@ def get_posts(root: Node, page: Path):
             continue
         if t.tag == "span" and "name" in t.cls():
             author = re.sub(r"\s+", " ", text_of(t)).strip()
-        elif t.tag == "span" and "postbody" in t.cls():
+        elif "postbody" in t.cls():
             imgs = []
             posts.append({"author": f"{author} ({date})" if date else author,
                           "text": tidy(render(t, page, imgs)), "imgs": imgs})
@@ -301,7 +301,7 @@ def get_posts(root: Node, page: Path):
         return posts
     # (m) PHPWind variants without ids: <div class="tpc_content"> per post (yhsn.net)
     for t in root.walk():
-        if t.tag == "div" and "tpc_content" in t.cls():
+        if t.tag in ("div", "span") and "tpc_content" in t.cls():
             imgs = []
             txt = tidy(render(t, page, imgs))
             if txt or imgs:
@@ -388,6 +388,102 @@ def get_posts(root: Node, page: Path):
                 posts.append({"author": "", "text": txt, "imgs": imgs})
     if posts:
         return posts
+    # (w) old PlayChina/Discuz 2.x boards (GoChina sets): <a name=pidNNN> + table; the body is the
+    #     <td valign=top> that holds <span class=bold><span class=smalltxt>subject</span></span>;
+    #     author = first span.bold of the sibling author cell; the signature sits in another <tr>
+    for t in root.walk():
+        if t.tag == "td" and t.attrs.get("valign", "").lower() == "top" and any(
+                isinstance(c, Node) and c.tag == "span" and "bold" in c.cls()
+                and any(isinstance(g, Node) and g.tag == "span" and "smalltxt" in g.cls() for g in c.children)
+                for c in t.children):
+            author = ""
+            inside = {id(x) for x in t.walk()}
+            anc = t.parent
+            while anc is not None and not author:
+                if anc.tag == "tr":
+                    for sp in anc.walk():
+                        if sp.tag == "span" and "bold" in sp.cls() and id(sp) not in inside:
+                            author = re.sub(r"\s+", " ", text_of(sp)).strip()
+                            break
+                anc = anc.parent
+            imgs = []
+            posts.append({"author": author, "text": tidy(render(t, page, imgs)), "imgs": imgs})
+    if posts:
+        return posts
+    # (x) vBulletin 2.x (gochina8 showthread.php): <td valign=top> whose first <p> holds "第N篇" (post number)
+    #     and the subject; the following <p> elements are the body; author = first <b> of the sibling cell
+    for t in root.walk():
+        if t.tag != "td":
+            continue
+        ps = [c for c in t.children if isinstance(c, Node) and c.tag == "p"]
+        if not ps or not re.search(r"第\s*\d+\s*篇", text_of(ps[0])):
+            continue
+        author = ""
+        inside = {id(x) for x in t.walk()}
+        anc = t.parent
+        while anc is not None and not author:
+            if anc.tag == "tr":
+                for b in anc.walk():
+                    if b.tag == "b" and id(b) not in inside:
+                        author = re.sub(r"\s+", " ", text_of(b)).strip()
+                        break
+            anc = anc.parent
+        imgs = []
+        txt = tidy("\n".join(render(p, page, imgs) for p in ps[1:]))
+        posts.append({"author": author, "text": txt, "imgs": imgs})
+    if posts:
+        return posts
+    # (y) LB5000 boards (topic.cgi: chinapapago, t-sucker, newchina169): a <td valign=top width=160> member cell
+    #     (author = its first <b>, text has 總發言數/威望/頭銜) next to the body cell = the cell with the most text
+    for t in root.walk():
+        if (t.tag == "td" and t.attrs.get("valign", "").lower() == "top" and t.attrs.get("width", "").isdigit() and int(t.attrs["width"]) >= 150
+                and re.search(r"發言數|威望|頭銜|总发言|头衔", text_of(t))):
+            tb = t.parent
+            while tb is not None and tb.tag != "table":
+                tb = tb.parent
+            if tb is None:
+                continue
+            inside = {id(x) for x in t.walk()}
+            best, bestn = None, -1
+            for td in tb.walk():
+                if td.tag != "td" or id(td) in inside:
+                    continue
+                if any(isinstance(c, Node) and c.tag == "table" for c in td.children):
+                    continue
+                n = len(re.sub(r"\s+", "", text_of(td)))
+                if n > bestn:
+                    best, bestn = td, n
+            author = next((re.sub(r"\s+", " ", text_of(b)).strip() for b in t.walk() if b.tag == "b"), "")
+            if best is not None:
+                imgs = []
+                posts.append({"author": author, "text": tidy(render(best, page, imgs)), "imgs": imgs})
+    if posts:
+        return posts
+    # (z) phpBB 2.0.0 viewtopic (zh-family, chinacafe): one <tr> per post = author cell (註冊時間|Joined) + body cell
+    for tr in root.walk():
+        if tr.tag != "tr":
+            continue
+        tds = [c for c in tr.children if isinstance(c, Node) and c.tag == "td"]
+        if len(tds) != 2 or not re.search(r"註冊時間|注册时间|Joined", text_of(tds[0])):
+            continue
+        if any(x.tag == "table" for c in tds for x in c.walk()):
+            continue
+        author = next((re.sub(r"\s+", " ", text_of(x)).strip() for x in tds[0].walk()
+                       if x.tag in ("span", "b") and ("largetext" in x.cls() or x.tag == "b")), "")
+        imgs = []
+        posts.append({"author": author, "text": tidy(render(tds[1], page, imgs)), "imgs": imgs})
+    if posts:
+        return posts
+    # (aa) TOM news article pages (news.tom.com): the article is the <td class="text"> with the most text
+    cands = [t for t in root.walk() if t.tag == "td" and "text" in t.cls()]
+    if cands and root.walk and any(t.tag == "div" and t.attrs.get("id") == "tomhead" for t in root.walk()):
+        t = max(cands, key=lambda c: len(text_of(c)))
+        imgs = []
+        txt = tidy(render(t, page, imgs))
+        if txt:
+            posts.append({"author": "", "text": txt, "imgs": imgs})
+        if posts:
+            return posts
     # (b) photo-album pages: the photos sit in <div class="phototable212"> blocks
     imgs, parts = [], []
     for t in root.walk():

@@ -617,3 +617,68 @@ Not in code (done by hand, described in the sections): txt routing into `locatio
 - All scratchpad backups, quarantines and removed → kept logs were deleted on request: earlier clean-ups cannot be undone from them.
 
 **To resume:** `source venv/bin/activate`, then `python merge_report_folders.py audit <root> --data-dir /Users/hany/Downloads/data.done` for each report root and `python audit_txt_library.py <txt>/locations <txt>/series <txt>/category`; follow the checklist of section 32.
+
+## 39. Reference run: 24 GoChina zips in `inputs/` (2026-11-19)
+
+All 24 zips (`GoChina_1-5`, `gochina`, `Report_gochina`, `GoChina_2005_07_I-V`, `GoChina_2005_09`, `Gochina8_newset_01/02`, `NewGoChina8_00-08`; 48,000 files, 3.4 GB) hold saved forum pages (`.htm` + `_files`). Workflow: extract each zip with Python `zipfile` (section 16 name fix, path-traversal guard) into its own scratchpad folder → `process_html_posts.py` into `outputs/<zip>/` (layout A) → `add_summary_output.py` → `merge_report_folders.py audit`. Then consolidate.
+
+**Per zip (after the adapters below):** 40 to 284 reports and 308 to 3,446 images per zip, 3,925 reports and 40,116 images in total; every root: 0 broken links, 0 orphans, 0 fake images, 0 missing CSV outputs; the only audit finding was exact duplicates inside one zip (same thread saved twice).
+
+**New adapters / fixes in `process_html_posts.py` and `htmltree.py`** (all last-resort, placed before the photo-album fallback; the first run without them left 198 of 7,300 pages unsupported):
+- (w) old PlayChina/Discuz 2.x: `<a name=pidNNN>` + table, body = `td[valign=top]` holding `span.bold > span.smalltxt` (GoChina_1: 48 of 53 pages).
+- (x) vBulletin 2.x (`showthread.php`): `td` whose first `<p>` holds `第N篇`; body = the following `<p>`s; author = first `<b>` of the sibling cell.
+- (y) LB5000 `topic.cgi` (chinapapago, t-sucker, newchina169; 59 pages): member cell `td[valign=top][width>=150]` with 總發言數/威望/頭銜, body = the cell with the most text in the same table.
+- (z) phpBB 2.0.0: `<tr>` with 2 `td` (author cell with 註冊時間, body cell), no nested tables (zh-family).
+- (aa) TOM news article pages: `td.text` when `div#tomhead` exists.
+- extended: PHPWind `span.tpc_content` (gochina7 `read.php`, 30 pages); phpBB `postbody` on a `td`.
+- `decode_file`: pages declared `windows-1252`/`iso-8859-1` but saved as Big5 (crazys.net) are decoded with big5hkscs (or gb18030) when it yields >20 CJK characters and <2% replacement characters.
+
+**Still unsupported on purpose (89 pages):** 79 image-host error pages inside `_files` folders (PChome, ImageShack, Fapomatic, 404, bandwidth exceeded); 7 error/permission pages (jcl99 `非法連結`, one 503); 2 maichun Discuz pages that hold only the reply form; 1 songmen BMB page with 2 saved pictures.
+
+**New scripts:** `add_summary_output.py` (adds the `output` column to `<folder>_summary.csv`; the audit needs it) and `fix_manifest_gaps.py` (section 12.4: adds manifest rows for `p<NNN>_` copies of a picture used by two pages of one thread; 62 rows in 6 roots).
+
+**Consolidation** into `outputs/GoChina.consolidated/` (layout A: `reports/<zip folder>/`, `images/…`, `images.only/…`, `txt/…`, CSVs at the root; APFS clone copies, the per-zip outputs stay in `outputs/<zip>/`):
+
+| Step | Result |
+|---|---|
+| Combined | 3,925 reports, 40,116 images, 155 txt, 24 folders (case-insensitive file system: names `gochina` and `GoChina_1` do not clash) |
+| `dedupe` (exact: normalized text + image sequence) | 887 groups; 1,154 reports and 13,126 images quarantined (scratchpad, `removed_to_kept.tsv`, 14,280 CSV rows repointed); 4 groups HELD (images differ in bytes, section 28; 12 pictures involved, the larger copy is in the other report in all four) |
+| After | 2,771 reports, 26,990 images, 0 broken, 0 orphans, 0 missing outputs in 44,981 CSV cells, 0 empty folders |
+| Near pairs | 163 listed by `audit`/`near`, kept (section 31 review is by hand) |
+| txt | 155 pages → 20 exact duplicates/empty skipped → `txt/GoChina.txt` + `GoChina.manifest.csv` (135 stories, 15,892 lines; section 19 checks pass, 0 noise); the per-folder txt pages stay in `txt/<folder>/` |
+| Noise scan | 0 watermark leftovers, 0 garbage-token hits in 2,771 reports and the merged txt |
+
+Open: the 4 held groups (replace smaller pictures?), the 163 near pairs, deleting the quarantine (only on request after a byte check), and whether to cross-check against the existing `data.done` library (not done; not requested).
+
+## 40. From the consolidated set to the final library under `~/Downloads/data.done` (2026-11-19)
+
+The user took the section 39 output, put it under `data.done/{txts,images,reports}/gochina/{base,*-source}` and finished it with the steps below. The helper scripts were scratchpad tools (not saved in the project); the logic is written down here so it can be redone.
+
+**40.1 Base vs source (`txt` / `txt-source`, `images` / `images-source`).** Rule: the base wins; whatever the base already holds is removed from the source.
+- Compare txt by normalized text (lower case, no whitespace) and images by SHA-256; then `cmp` every source file against the base copy at the same relative path before deleting. Here all 152 txt and 785 images were identical, so the source folders ended up empty.
+- Prune empty folders after the delete; a folder holding only `.DS_Store` counts as empty (delete the `.DS_Store`, then `rmdir`, repeat until stable).
+- The user moves and renames files by hand between steps (`GoChina.txt` and its manifest vanished, `outputs/` was emptied, `gochina_2026.11.19.txt` became `txt_merged.txt`). Re-list the real state before every step instead of trusting earlier notes.
+
+**40.2 One golden txt + manifest.** Walk all `.txt`, sort by relative path, drop exact duplicates by normalized text (md5), join stories with one blank line, write `<name>.txt` (UTF-8, LF, no BOM) and `<name>.manifest.csv` (BOM, LF; `no, file, start_line, end_line, chars, duplicates_skipped`; `／` stands for `/` in paths). Before deleting the originals re-read the golden file by the manifest ranges and check every kept file AND every skipped duplicate equals its segment (normalized). Report near-duplicate stories (≥300 chars, Jaccard >0.7, containment >0.8) but keep them: 4 pairs, all 0.99–1.00. If the manifest is lost later, rebuild it from the file: a story starts at a non-blank title line followed by a line starting `作者`, preceded by a blank line (gave exactly 135, same as before); columns `no, title, start_line, end_line, chars`; check that the ranges cover every non-blank line without overlap.
+
+**40.3 One golden image folder.** Group by SHA-256, keep one file per group named `<first folder>__<original name>` (121 base names clashed across folders), manifest `no, file, sha256, bytes, copies_merged, original_paths`. Verify the hash of every copy before deleting the originals. 785 files → 607.
+
+**40.4 Reports: sync check and link depth.**
+- After a folder is flattened by hand the links can be one level too deep (`../../images/<f>/x` from `<f>/x.html`): 27,107 links "broken", all images "orphans". Test the fix by simulation (resolve with `../images/`), then rewrite only the `src` attribute and back up the pages first.
+- CSV `output` paths follow the same shift: strip the `reports/` prefix (summary) and re-check every row. Rows that point at content that now lives elsewhere (txt pages, `images.only/…`) are removed when the user says it is handled separately; so are summary rows with an empty `output` (unsupported pages). Keep BOM and EOL of each CSV, back up first.
+- Sync test between two report roots: page signature = md5(normalized visible text without `<title>`) + tuple of the SHA-256 of its images, in order. Images are in sync when the sets of distinct image hashes are equal (24,496 = 24,496).
+- Source pages that match no base signature were all near-duplicates: same image sequence, text differs only in header labels (page id `p44076` vs `great_44076`, forum prefix 綜合 vs 救國, a placeholder title such as `g2`). Classify by difflib: subset, ≤20 chars each side, ≥95% similar → duplicate; more than that → HOLD. In the base itself 97 of 119 extras were duplicates, 22 held (kept as unique, e.g. `GoChina_1/5769.html` vs `p2019742.html`, 41%). Keep the page with the longest text.
+- Deleting duplicate pages: delete their images only if no remaining page uses them and a byte-identical copy is kept (assert it), then prune CSV rows whose output was deleted, then empty folders.
+
+**40.5 Flat layout (layout B with one set).** Target `reports_merged/`: `<set>_summary.csv`, `<set>_images_manifest.csv`, `<set>/` (all pages) and `<set>/images/<set>/` (all images), as in `data.bak/2010_01+04+07.Reports/yktm*`. Here set = `gochina`.
+- Name every page and image `<old folder>__<old name>` (28 page names clashed; longest name 187 bytes, limit 255; check case-insensitive collisions). Move one by one: write the new page, then delete the old one.
+- Combine the per-folder CSVs into the two set CSVs: add no extra column (the old `folder` column was dropped, the prefix keeps the origin) and check beforehand that every `output` maps to a file.
+- **Pitfall: write links raw, not percent-encoded.** The pipeline and `merge_report_folders.py audit` compare `html.unescape(src)` with the file name (no URL decoding). My first flatten used `urllib.parse.quote`; the audit then showed 836 broken links and 699 orphans although the files were fine. Use `html.escape(name, quote=True)`; this is safe because no name contains `#`, `?` or `%`.
+- Merging identical images into shared files (SHA-256, keep the alphabetically first) repoints page links and manifest `output` and deletes the copies (26,062 → 24,496, 98 MB). Side effect: pages that showed one photo set twice now have fewer distinct images, so the audit reports `images_copied-mismatch`; set `images_copied` to the page's distinct image count (21 rows).
+- Extension check by magic bytes (`FFD8FF`, `89PNG`, `GIF8`, `BM`): 26 files had the wrong extension (13 `.jpg` that are GIF, 9 `.jpg` that are BMP, 4 `.png` that are JPEG). Rename the last extension, then repoint page links and manifest rows (check clashes first).
+
+**40.6 Final audit (all of this passed).** `python merge_report_folders.py audit <root>` (root = `reports_merged`) plus own checks: every image has a valid header and size >0, every page is strict UTF-8 with a title and no noise, summary `output` all `.html` and existing, manifest rows are `copied` (with output) or `skipped`, no image missing from the manifest. txt: strict UTF-8, no noise or mojibake (private-use, Latin-1 runs), 135 `作者` headers = 135 stories, no exact duplicates.
+
+**Final state (`data.done/gochina_2026.11.19/`):** `txt_merged.txt` (135 stories, 15,892 lines) + `txt_merged.manifest.csv`; `reports_merged/` with 2,674 pages, 24,496 images, `gochina_summary.csv` (3,808 rows) and `gochina_images_manifest.csv` (41,154 rows; 2,203 rows are `skipped` with an empty output). Audit: no issues. Informational only: 82 near page pairs, 4 near story pairs (all kept), repeated CSV keys (rows repointed during de-duplication).
+
+**Habits that held:** dry run first, every delete preceded by a byte or hash check, backups of every CSV/page rewritten (scratchpad), never `find /` (it hangs; search only known folders), re-run the audit after every move.

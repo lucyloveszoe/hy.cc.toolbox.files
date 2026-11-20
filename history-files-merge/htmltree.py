@@ -68,6 +68,13 @@ def decode_file(path) -> str:
     m = re.search(rb"charset=[\"']?([\w-]+)", raw[:4000], re.I)
     cs = m.group(1).decode().lower() if m else "gb18030"
     cs = {"gb2312": "gb18030", "gbk": "gb18030", "x-gbk": "gb18030", "big5": "big5hkscs"}.get(cs, cs)
+    if cs in ("windows-1252", "iso-8859-1", "latin1", "us-ascii"):
+        # pages saved with a wrong western charset declaration: use big5 / gbk when the bytes decode strictly
+        for alt in ("big5hkscs", "gb18030"):
+            t = raw.decode(alt, "replace")
+            cjk = sum("\u4e00" <= ch <= "\u9fff" for ch in t)
+            if cjk > 20 and t.count("\ufffd") < cjk * 0.02:
+                return t
     try:
         return raw.decode(cs, "replace")
     except LookupError:
