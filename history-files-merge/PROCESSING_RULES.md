@@ -682,3 +682,92 @@ The user took the section 39 output, put it under `data.done/{txts,images,report
 **Final state (`data.done/gochina_2026.11.19/`):** `txt_merged.txt` (135 stories, 15,892 lines) + `txt_merged.manifest.csv`; `reports_merged/` with 2,674 pages, 24,496 images, `gochina_summary.csv` (3,808 rows) and `gochina_images_manifest.csv` (41,154 rows; 2,203 rows are `skipped` with an empty output). Audit: no issues. Informational only: 82 near page pairs, 4 near story pairs (all kept), repeated CSV keys (rows repointed during de-duplication).
 
 **Habits that held:** dry run first, every delete preceded by a byte or hash check, backups of every CSV/page rewritten (scratchpad), never `find /` (it hangs; search only known folders), re-run the audit after every move.
+
+## 41. Reference run: 53 zips in `inputs/{breakdown,location,merged}` (2026-11-19)
+
+53 zips (22 series zips in `breakdown`, 16 region zips in `location`, 15 `mcjt_*` and loose-image zips in `merged`; 5.2 GB, ~75,800 entries): saved forum pages, three loose-image zips (`J情一夜` 806, `mcjt_pics` 81, `misc_report_pics` 363 images) and a few `.doc` / `.txt` files. Workflow = section 39, with these corrections:
+
+1. **Pilot one zip first, then batch.** The first zip (`大盗贼`) gave 0 reports and 223 unreferenced images: the layout adapters were wrong, not the data. Fix the adapters on the pilot, then run all zips. The first batch still left ~2,400 pages unsupported; the second batch (after adapters below) left 31.
+2. **Run a batch into a scratch root, compare, then swap.** Pass 2 went to `scratchpad/pass2/`; `outputs/` was replaced only after the comparison (53 folders moved to `scratchpad/stale/pass1`, new ones cloned with `cp -cR`; file count equal). A single bulk `mv` of every output folder was refused by the permission layer; do not retry it differently, ask.
+3. Extract with the section 16 name fix (`extract_zip.py`: `cp437 → gbk/big5hkscs` when bit 0x800 is not set, `\` → `/`, path-traversal guard, one empty dir per zip). Extractions stay in the scratchpad (5 GB) for the audit in section 46.
+
+New adapters / fixes in `process_html_posts.py` (all after the existing ones, so earlier pages are unaffected):
+- **pid table without `postmessage` class:** body = `div.t_msgfont` or `id=postmessage_N`. Without it every post came out empty and all images were lost (`大盗贼`).
+- **(ab) old Baidu Tieba:** `div.post` per floor, body `p#post_content_N`, author `li.name`.
+- **(ac) Discuz 4.x/5.x "altbg" boards:** one `<tr>` with two `<td>` per post; author cell = `a.bold`/`span.bold` + `span.smalltxt`, body = the other cell (`mcjt_old_*`, `mcjt_02`, `mcjt_html_04`: ~2,300 pages).
+- **(ad) Tianya:** `div.post` per post (skips `div.post` that contain a Tieba `post_content_` paragraph). **(ae)** `div.xcontent` per post (header line `N楼 … 个人资料` stripped). PHPWind `tpc_content` also on `td`.
+- **(af) plain article pages** (no forum markup): whole `<body>` as one post, only when it holds ≥ 1,500 CJK characters, so stubs and Q&A snippets stay unsupported.
+- **Page collector bug:** `src.rglob("*.htm")` is case-sensitive and skipped 51 `.html` and 3 `.HTM` pages (54 pages in 5 roots). Now `suffix.lower() in (".htm", ".html")` in both `process_folder` and the image sweep. The audit of section 46 found this; a count check "pages in the zip == summary rows" would have caught it on the first run.
+
+Unsupported on purpose (31): 300–570-byte empty stubs, 1 new-style Tieba page with empty post bodies, 1 Q&A page (搜搜问问).
+
+Per-zip results: 4,335 reports + 6,416 txt pages (pass 2), image-only zips to `images.only/` with manifests (the manifest of `misc_report_pics` has 7 extra `skipped: not an image` rows for js/css/php). `outputs/<zip>/` for an image-only or txt-only root has no `reports/`+`images/`: `merge_report_folders.py audit` then prints `orphans` / `non-image-ext` / `missing csv`; that is not a defect.
+
+`.doc` files in zips: `doc_to_txt.py` first (it skips files with pictures), `doc_to_html.py` for the rest (carved count == field count for all 7). `KoreaMap.doc` again has 7 PNGs and no picture field: `doc_to_html` falls back to "remote" with 0 images, so no report is stored and the text-only txt is kept (section 16). Loose `.txt` (8 files, same names in several sub-folders) go through `clean_loose_txt.py` into one output sub-folder each (`txt/loose/<sub>/`) to avoid name clashes.
+
+Other tool facts: `fix_manifest_gaps.py` expects `images/<root>/` and crashes on image-only roots (run it only on roots that have one; 62 rows added). Exact duplicates inside one zip (same thread saved twice, `b`/`n` suffix or truncated title) are removed per root with `merge_report_folders.py dedupe … --go` (141 reports, 2,258 images; groups whose image bytes differ stay HELD, see section 28: 2 groups left, the other copy has pictures ~2× larger). `fix-fake` found 7 fake images (+6 later in `mcjt_胜地_added`). Cross-zip overlaps (`Great_Redarmy` vs `_B`/`_C`, `十里洋场杯` vs `军密档案`) were not de-duplicated at report level.
+
+## 42. Moving outputs into `data.done/mc_2026.11.19` and keeping the CSVs valid (2026-11-19)
+
+Final layout chosen by the user: `html/{merges,topics}/<root>/{reports,images,<root>_summary.csv,<root>_images_manifest.csv}`, `images/<folder>/` (the former `images.only/<folder>`), `txt/topics/`.
+
+- **`images.only/<folder>` → `images/<folder>`** (31 folders, 5,554 files, `mv`, no name clash). Every manifest row pointing into `images.only/` (5,554) must be repointed: `merge_report_folders.py repoint --old <abs old folder> --new <abs new folder> --data-dir <root> --backup-dir <NEW dir> --go`, one call per folder. **`--backup-dir` must not exist** (`FileExistsError` after the first call): use a different directory per call. Exit code 1 is returned while other folders' rows are still unresolved; check the CSVs, not the exit code. A dry run prints "rows to repoint N, unresolved M" (M counts other folders' rows).
+- **`txt/<root>` → `data.done/…/txt/<root>`** (42 folders, 6,429 files): rename `txt/<root>` and put extras (`loose/`, doc txt) inside; 6,411 summary rows repointed; empty `txt` / `images.only` folders removed only after listing them (a lone `.DS_Store` does not count).
+- **The user moves whole roots between turns** (`outputs/*` → `html/merges` and `html/topics`, 113 CSVs). Relative `output` paths then break everywhere, including the ones just repointed. Fix with one script: for every CSV, resolve each `output` against the **old** folder (`<project>/outputs/<root>`), classify (inside the root → keep relative; into `data.done` → keep the absolute target), rewrite relative to the **new** folder, back up every CSV first, keep BOM and EOL, require 0 missing. 74 CSVs changed, 55,181 rows resolved.
+- Always `ls` the real state at the start of a turn: `outputs/` was empty, `mc_merged.removed.tsv` had been deleted, `.DS_Store` appeared. Keep a copy of every log needed later (duplicate map, removed → kept) in the scratchpad.
+
+## 43. Consolidating all txt into one file, cleaned and de-duplicated (2026-11-19)
+
+Input: 6,429 txt files in 43 folders (44 MB: 6,416 page txt, 8 loose, 5 from `.doc`). Output (section 40.2 layout): `mc_merged.txt` + `mc_merged.manifest.csv` (`no, file, start_line, end_line, chars`, `／` for `/`) + `mc_merged.removed.tsv` (`EMPTY|DUP, source, kept`).
+
+Rules, in order, applied to each file:
+1. Normalize: BOM off, U+2028/2029 → newline, CRLF → LF, NBSP → space, `&#N;` → character, control characters and U+FFFD removed, trailing blanks stripped, 3+ blank lines → 1.
+2. Noise: watermark block (`clean_doc_noise.clean`), spam phrase (`SPAM`, `SPAM2` of `clean_loose_txt.py`), board footer in the title line (`\s+-\s+[^\s-]*春色.*关闭注册[】\]]?$`).
+3. **Boilerplate variants found by the scan** (a plain grep of the merged file after cleaning is the test): edit stamps **without brackets** (`本帖最后由 X 于 date 编辑`), reply notices in several forms (`需要积分高于 N 才可浏览[，您当前积分为 N]`, `[nick，]如果您要查看本帖隐藏内容请回复`, a standalone `本帖隐藏的内容` line) and a Big5-garbled one (`本帖隱藏漱漁e需要^復~iH瀏覽`, 13 stories, caught only by the audit), `[image missing]` markers (4,642; meaningless in a text-only file).
+4. **Garbage tails:** line-level `strip_tail` (`doc_to_txt.py`) and `strip_edges` (`clean_loose_txt.py`) removed 18,767 + 178 hits; then a narrow run rule for the rest (a run of ≥ 4 short tokens with ≥ 3 letter+digit tokens, or ≥ 1 letter+digit and ≥ 2 symbol tokens). **Do not use `BEFORE`/`AFTER` of `clean_loose_txt.py` here**: they delete `www.maichun.org` inside real URLs. Plain runs (`KJ / ML`, `60 70 60 75 80`, `A, B, C, D, E`) stay; 3 garbage-shaped runs remain.
+5. **Empty** = title (and author line) only, no body: 4 files (a file that only had images becomes empty once the markers are removed). Short real bodies (10–29 characters) stay.
+6. **Duplicates** = same whitespace-free, lower-cased md5 after cleaning (cleaning exposes more: 408 → 421); keep the longest file name (most complete title). Near duplicates are not removed.
+
+Result: 6,004 stories (6,429 − 421 − 4), 41 MB, 280,463 lines, CJK removed 0.12 %. Verification that worked: every kept story's CJK characters are an **in-order subset** of its source's CJK characters (0 violations), no story loses > 20 %, duplicates are in-order subsets of each other, empties have no CJK body. Substring tests on the first/last 20 characters give false failures after cleaning.
+
+The CSV rows that pointed at individual txt pages were repointed to the merged file (plain path, no `(merged)` suffix); the 4 empties got a blank `output` and a `note` column `[txt file was empty; removed]` (section 20).
+
+## 44. Splitting the merged txt into topic files `mc_<topic>.txt` (2026-11-19)
+
+Target `txt/topics/`: `mc_<topic>.txt` + `mc_<topic>.manifest.csv` (same 5 columns) per topic and `routing_report.csv` (`no, file, topic, basis, top_scores`). Every story lives in exactly one topic; the master stays unchanged until the user agrees to move it.
+
+**Priority per story** (the chain = its own source folder plus the folders of its removed duplicates from `removed.tsv`; the de-duplication kept the copy in a generic `mcjt_*` folder in many cases, so the own folder alone is not enough):
+1. a **series folder** anywhere in the chain → topic named after the folder (`大盗贼`, `刺桐花落`, `学生妹`, `十里洋场`, `松兰山海`, `母女`, `上海狼在俄罗斯` (also the `Great_` variants), `Redarmy` (`Great_Redarmy*`), `沈公子`, …);
+2. a **region folder** (`上海`, `川渝精品收藏馆`, `江苏军区`, `徐州`, `东北军区藏经阁`, …) → canonical region file (`川渝`, `江浙`, `东北`, `京津`, …) so keyword-routed stories join the same file;
+3. **keyword score** over a region table (section 18: title ×6, `【地址/地点/位置/店名…】` field ×6, body ×1; confident when best ≥ 8 and ≥ 2× second; board tag `[桂总阅]`→广西 etc. only as tie-break; extra tiers: single region with 4–7 hits, lead ≥ 1.5×); ambiguous words are not in the table (南京路, 长安, 白云, 朝阳区, 川沙 for 川渝, …);
+4. **second pass for the rest** (`--relax`): learn venue/street words (3–4-grams in ≥ 5 confident stories with ≥ 90 % in one region: 3,310 words) and add them as clues; majority (≥ 3 hits), single mention, tie → earliest mention (title first);
+5. otherwise `待定义`.
+
+Results: 6,004 stories in 44 topic files; keyword + series + region + majority 5,458, `待定义` 546. **Weak evidence stays pending when the user asks for it:** the single-mention and first-mention placements (410) were reviewed by sampling titles (board names such as 西凤阅, 巴郎子, 美总阅 were wrong or missed) and moved back to `待定义`; their candidate region is kept in `basis` as `mention-single(held:江浙)`. The 136 stories with no place name at all cannot be routed. Rerun checks: story set and text identical to the master, manifests valid (section 19), `待定义` count by basis.
+
+**Adding stories later (incremental):** do not re-run the whole router on the combined master and accept all changes: new data shifts the learned words and re-routed 5 existing stories. Route the new stories with the combined run, **freeze the old topics**, append to the topic files (section 18 step 4 algorithm, new topic = new file), extend `routing_report.csv`, rebuild manifests of touched files only, back up `topics/` first.
+
+When the master is retired: repoint the CSV rows to the topic file of their story. A row's story is found from the **pre-repoint backup** of its CSV (original source path → kept story, or via the duplicate map to the kept story → topic in `routing_report.csv`); the merged path alone no longer identifies a row. 6,412 rows repointed, then `mc_merged.txt` and its manifest were moved (not deleted) to the scratchpad.
+
+## 45. Python / shell pitfalls met in this session
+
+- `Path.rglob("*.htm")` is case-sensitive (see 41); `htmltree.Node.cls()` returns a **list** (do not `.split()` it); macOS `sed -i` needs `sed -i ''` and a failed `sed` leaves the file unchanged while the next command runs on stale code (check with `grep` after editing). In zsh an unmatched glob is an error (`no matches found`), so `grep -r --include=*.csv` must be quoted or replaced by `find … -name '*.csv' -print0 | xargs -0 grep`.
+- A re-run after a crash may leave a partial output folder; move it aside (scratchpad), never delete or merge into it.
+- Python reading files with `[`, `]` in names: `glob` treats them as patterns; walk with `os.walk` and compare relative paths.
+- Truncating a printed list (`[:4]`) hid a fifth mismatch; print complete mismatch lists in audits.
+
+## 46. Final audit of the txt content (run before calling a txt library done)
+
+`final_audit.py` (scratchpad; read-only) checks the whole chain and prints PASS/FAIL per item:
+1. topics: UTF-8, LF only, one trailing newline, no BOM, no U+FFFD / NBSP / U+2028-9; manifest ranges valid (section 19); no story in two topics;
+2. the topic files equal the master story for story (allowing the documented removals);
+3. every source txt is accounted for: `sources = kept + duplicates + empty`, 0 unaccounted; every duplicate points at a kept story;
+4. content: kept stories' CJK is an in-order subset of the source, total CJK loss < 0.5 %, no story loses > 20 %; duplicates are the same text as their kept copy; empty files have no body;
+5. noise scan over all stories: watermark, edit stamps, reply notices (simplified and traditional forms), `[image missing]`, `INCLUDEPICTURE`/`HYPERLINK`, entities, control characters = 0 (private-use characters are listed only);
+6. summary rows of txt pages: each has a topic file that exists, blank ones are exactly the empties with the note;
+7. **page coverage:** for each root, (html + txt + unsupported rows, including its `_added` root) == number of `.htm`/`.html` files in the extracted zip. This found 54 pages never processed (41); the 42 text pages were then added as stories (one has > 90 % overlap with a same-title story and was kept, near duplicates are not removed), the 12 reports as new roots `<root>_added` (own CSVs, images, 6 fake images fixed);
+8. all CSV `output` paths of all roots resolve.
+
+Final state (2026-11-19): 6,046 stories, 14.85 M characters, 44 topic files, 58 report roots, 61,785 CSV outputs, 0 missing, 0 failed checks. Open: 546 stories in `待定义`, 16 private-use characters (source mojibake), 31 unsupported pages (stubs), cross-zip report duplicates not de-duplicated, scratchpad backups (`topics_v*_backup`, `master_removed`, `txt_sources_removed`, `bak_csv_*`, `quar_fake*`) still to be deleted on the user's word and lost on reboot.
+
+Session scripts are saved in `session_tools_2026.11.19/` (standard library only, run with `python3 -I`, except `txt_build.py`/`route_topics.py` which import the project modules from this folder): `extract_zip.py` (41), `diag.py` (classify unsupported pages), `txt_build.py` (43), `new_txt_check.py` (add pages later), `route_topics.py` (44; `--relax`, `MC_T=<dir>` overrides the input folder), `fix_csv_after_move.py` and `repoint_to_topics.py` (42, 44), `final_audit.py` (46). They still contain this session's absolute paths (`/Users/hany/Downloads/data.done/mc_2026.11.19`, the scratchpad); adjust the constants at the top before reuse.

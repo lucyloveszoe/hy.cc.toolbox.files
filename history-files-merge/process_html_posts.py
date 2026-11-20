@@ -537,6 +537,14 @@ def get_posts(root: Node, page: Path):
             posts.append({"author": author, "text": tidy(render(body, page, imgs)), "imgs": imgs})
     if posts:
         return posts
+    # (af) plain article pages with no forum markup (e.g. 医院性游记.HTM): the whole <body> is one post, but only
+    #      when it holds >= 1500 CJK characters (stubs, error pages and Q&A snippets stay unsupported)
+    body = next((t for t in root.walk() if t.tag == "body"), None)
+    if body is not None:
+        imgs = []
+        txt = tidy(render(body, page, imgs))
+        if len(re.findall(r"[㐀-鿿]", txt)) >= 1500:
+            return [{"author": "", "text": txt, "imgs": imgs}]
     # (b) photo-album pages: the photos sit in <div class="phototable212"> blocks
     imgs, parts = [], []
     for t in root.walk():
@@ -582,7 +590,7 @@ def sweep_images(src: Path, outdir: Path):
     rows, base = [], outdir / "images.only" / src.name
     for f in sorted(x for x in src.rglob("*") if x.is_file() and x.name != ".DS_Store"):
         rel = str(f.relative_to(src))
-        if f.suffix.lower() == ".htm":
+        if f.suffix.lower() in (".htm", ".html"):
             continue
         if f in ROUTED:
             rows.append((rel, "copied: used by a saved post", str(ROUTED[f].relative_to(outdir))))
@@ -614,7 +622,7 @@ def sweep_images(src: Path, outdir: Path):
 
 
 def process_folder(src: Path, outdir: Path):
-    pages = sorted(src.rglob("*.htm"))
+    pages = sorted(p for p in src.rglob("*") if p.is_file() and p.suffix.lower() in (".htm", ".html"))  # .HTM / .html too
     rows, img_dir = [], outdir / "images" / src.name
     for nn, page in enumerate(pages, 1):
         rel = page.relative_to(src)
