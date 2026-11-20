@@ -906,3 +906,13 @@ Request: "for all sub-folders apply the flat layout as `Great_Redarmy`, also cle
 - Kept: `ML MY KB`-style runs, `www.maichun.org` inside post URLs, `[image missing]`.
 
 Backups in the scratchpad: `bak_flat_all/`, `bak_noise_all/`, `bak_noise1b_all/`, `bak_footer_all/`.
+
+## 57. Moving finished roots into `html/locations/` (2026-11-20)
+
+`data.done/mc_2026.11.19/html/` now has three groups: `merges/` (source roots), `topics/` (series and merged topic roots) and **`locations/`** (region roots). The user moved 16 roots from `topics/` to `locations/`: 湖南, 湖北, 河南军区昔日传奇, 河北, 江苏军区, 欧非, 松兰山海, 徐州, 川渝精品收藏馆, 山东军区冬瀌聚丽, 安徽军区, 天津, 十里洋场, 北京军区歌舞升平, 东北军区藏经阁, 上海. `topics/` keeps 沧桑的情人, 学生妹, 大盗贼, 母女, 军密档案, 刺桐花落, 名家精品, 王牌写手, 私密图文, `Great_上海狼在俄罗斯`, `Great_沈公子`, `Great_Redarmy` and the image-only `J情一夜`. Sections 48-56 say `html/topics/<root>`: read that as `html/topics` or `html/locations` depending on the root.
+
+**Rule: move a root whole (folder + its two CSVs), one `mv` per root.** Before the move (read-only): all roots exist, no name clash in the target, CSV rows in **other** CSVs that resolve into the roots (0 here), and the rows that leave a root with `..` (904: 734 summary rows to `txt/topics/…`, 170 manifest rows to the shared `images/`). If the target is at the **same depth** (`html/<group>/<root>/`) every relative `output` stays valid and **no CSV is rewritten**; only when the depth changes (section 36, 42) resolve every `output` against the old folder and rewrite it relative to the new one, back up the CSVs first.
+
+**Check after the move:** all CSVs under `data.done` (outputs missing = 0; here 93 CSVs, 99,221 outputs), text mentions of the old path in any csv/tsv (0: `output` is the only column that holds paths), shared `images/` unreferenced = 0, and per group links / orphans (`locations` 16 roots, 11,787 links; `topics` 12 roots, 6,644 links; 0 broken, 0 orphans). Save the pre-move list of the source folder (`ls`) in the scratchpad.
+
+Open: the 3,179 `以下内容需要回复才能看到` placeholder lines (section 56) and the quarantines in the scratchpad (`quar_*`, `bak_*`) are still waiting for the user's decision.
