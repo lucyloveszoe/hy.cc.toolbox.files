@@ -1,4 +1,4 @@
-> Later work (2026-11-18/19) is recorded in `PROCESSING_RULES.md` sections 22-38: merging and auditing report roots, the txt library audit (section 35), CSV paths after moves (36), current state and open items (38).
+> Later work (2026-11-18/19) is recorded in `PROCESSING_RULES.md` sections 22-47: merging and auditing report roots, the txt library audit (section 35), CSV paths after moves (36), current state and open items (38), merging image sets into one folder (47).
 
 # txt.done 整理流程与规则（可复用）
 
