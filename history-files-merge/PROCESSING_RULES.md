@@ -965,6 +965,15 @@ Starting state: 862 reports in 20 roots (section 58). Scripts are saved in `sess
 
 **59.6 Final state and checks (after every step):** `mcjt-total` 647 reports, 5,097 images, 6,641 summary and 24,369 manifest rows (rows are blanked, never deleted); links 33,291, 0 broken, 0 orphans; 92,554 CSV outputs over `data.done`, 0 missing; 0 exact duplicates; `quar_exact.py check` runs these checks.
 
-**Open:** 647 reports in `mcjt-total` are not routed (118 tier-C reports with weak evidence, many `mcjt_old_*` pages with numeric titles and no place clue; routing them needs reading or a user decision per region, as in section 18); 6 mixed near pairs; the 3,179 placeholder lines of section 56.
+**Open:** 647 reports in `mcjt-total` are not routed (118 tier-C reports with weak evidence, many `mcjt_old_*` pages with numeric titles and no place clue; routing them needs reading or a user decision per region, as in section 18); 6 mixed near pairs; the placeholder lines are removed (59.7).
 
 **Quarantine deleted (2026-11-22, on the user's word).** Before the delete: all 1,595 quarantined images have a byte-identical copy in the library except 6 thumbnails (80x60 to 175x131 px, < 6 KB, only in the removed copies); all 71 routed reports exist at their target; all 657 original pages exist by name in `mcjt-total` (or were quarantined later as thin copies); every kept report resolves (2 were found by chain: `mcjt_02` copy -> `mcjt_01` copy -> `mcjt_04` copy, now in `mcjt-total`). 2,581 files, 166 MB; the list is `quarantine_deleted_list.txt` in the scratchpad. The earlier clean-ups of this session can no longer be undone from quarantine; `PROCESSING_RULES.md` and the scripts remain.
+
+**59.7 Placeholder line `以下内容需要回复才能看到` removed from every report (2026-11-22, on the user's word; sections 56-57 had left it).** `ph_scan.py` (read-only counts) and `ph_fix.py` (dry run unless `--go`) over all html under `merges`, `topics` and `locations`.
+- **Count:** 4,431 occurrences in 2,021 files in 38 roots (not the 3,179 of section 56: the later merges added copies, and this counts per occurrence). 4,429 are a whole line between `<br>` tags (nearly always followed by an `<i>` block); 2 sit inline after real sentence text.
+- **Rule:** `<br>` run + phrase + `<br>` run -> `<br><br>` (nothing when the next tag closes the post); an inline phrase is removed alone and the sentence stays.
+- **Safety checks per page (all passed, 0 failures):** the removed Chinese characters are exactly N copies of the phrase and nothing else (multiset test), no character added, `<img>` and `<section>` counts unchanged, ending tag unchanged, phrase count 0 afterwards.
+- **Side effect to catch:** the edit created 30 runs of 4 or more `<br>` in 24 pages (a removed line sat next to existing breaks); they had none before, so all runs in those pages were collapsed to 2 (section 4.4). Compare the count against the backup, not against 0.
+- **Backup (kept):** `~/Downloads/backup.placeholder.2026.11.22/` holds the 2,021 pages as they were, same relative paths (28 MB). Delete only on the user's word.
+- Result: 3,539 pages, 33,291 links, 0 broken, 0 orphans, 92,554 CSV outputs, 0 missing; 0 pages with the phrase, 0 with a 4+ `<br>` run.
+
