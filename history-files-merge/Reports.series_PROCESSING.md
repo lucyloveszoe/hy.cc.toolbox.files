@@ -1,4 +1,4 @@
-> Later work (2026-11-18/19) is recorded in `PROCESSING_RULES.md` sections 22-58: merging and auditing report roots, the txt library audit (section 35), CSV paths after moves (36), current state and open items (38), merging image sets into one folder (47), `html/merges` clean-up, de-duplication and routing into `html/locations` (58).
+> Later work (2026-11-18/22) is recorded in `PROCESSING_RULES.md` sections 22-59: merging and auditing report roots, the txt library audit (section 35), CSV paths after moves (36), current state and open items (38), merging image sets into one folder (47), `html/merges` clean-up, de-duplication and routing into `html/locations` (58), de-duplication inside `merges`, merge into `mcjt-total` and the loose rescan (59).
 
 # txt.done 整理流程与规则（可复用）
 
