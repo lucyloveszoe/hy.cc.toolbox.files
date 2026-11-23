@@ -9,7 +9,7 @@ TJ=re.compile('天津|塘沽|和平区|河西区|河东区|南开区|滨海新�
 def body(p):
     t=open(p,encoding='utf-8',errors='replace').read(); return html.unescape(re.sub(r'<[^>]+>',' ',t))
 nk=lambda s:re.sub(r'\s+','',unicodedata.normalize('NFC',s)).lower()
-tiers=[r for r in csv.DictReader(open('route_tiers.tsv',encoding='utf-8'),delimiter='\t') if r['tier'] in 'AB']
+tiers=[r for r in csv.DictReader(open(os.environ.get('ROUTE_PLAN','route_tiers.tsv'),encoding='utf-8'),delimiter='\t') if r['tier'] in 'AB']
 m={(r['root'],r['file']):r for r in q.scan('merges')}
 plan=[]
 for r in tiers:
