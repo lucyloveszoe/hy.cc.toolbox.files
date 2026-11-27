@@ -1,6 +1,8 @@
 #!/usr/bin/env python3 -I
+import sys as _sys, pathlib as _pl; _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
+from hfm_config import DD
 import os,re,html,csv,io,collections,unicodedata,hashlib
-ROOT='/Users/hany/Downloads/data.done/gochina_2026.11.19/reports_merged'; S='gochina'; PG=f'{ROOT}/{S}'; IMD=f'{PG}/images/{S}'
+ROOT=(DD+'/gochina_2026.11.19/reports_merged'); S='gochina'; PG=f'{ROOT}/{S}'; IMD=f'{PG}/images/{S}'
 nfc=lambda s:unicodedata.normalize('NFC',s)
 SIG={b'\xff\xd8\xff':'jpg',b'\x89PNG':'png',b'GIF8':'gif',b'BM':'bmp'}
 def sniff(p):

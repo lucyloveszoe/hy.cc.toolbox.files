@@ -1,7 +1,9 @@
+import sys as _sys, pathlib as _pl; _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
+from hfm_config import PROJ, DD
 import csv,os,sys,glob,collections,shutil
 GO='--go' in sys.argv
-P='/Users/hany/Documents/cc.self/hy.cc.toolbox.files/history-files-merge'
-D='/Users/hany/Downloads/data.done/mc_2026.11.19'; T=D+'/txt'
+P=PROJ
+D=(DD+'/mc_2026.11.19'); T=D+'/txt'
 SP=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 route={r['file'].replace('／','/'):r['topic'] for r in csv.DictReader(open(T+'/topics/routing_report.csv',encoding='utf-8-sig'))}
 dup={l.split('\t')[1]:l.rstrip('\n').split('\t')[2] for l in open(SP+'/txt_cand/removed.tsv',encoding='utf-8') if l.startswith('DUP')}

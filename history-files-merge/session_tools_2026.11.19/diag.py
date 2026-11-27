@@ -1,6 +1,8 @@
+import sys as _sys, pathlib as _pl; _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
+from hfm_config import PROJ
 import sys,csv,re,collections
 from pathlib import Path
-sys.path.insert(0,'/Users/hany/Documents/cc.self/hy.cc.toolbox.files/history-files-merge')
+sys.path.insert(0,PROJ)
 from htmltree import decode_file
 root=Path(sys.argv[1]); summ=Path(sys.argv[2]); n=int(sys.argv[3]) if len(sys.argv)>3 else 4
 rows=[r for r in csv.DictReader(open(summ,encoding='utf-8-sig')) if r['mode']=='unsupported']

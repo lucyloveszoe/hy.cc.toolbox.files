@@ -2,7 +2,7 @@
 # Extract every zip in inputs/ into <scratch>/ex/<zip> (section 16 name fix) and process it into outputs/<zip>.
 # Usage: batch_extract_process.sh <scratch dir>     (run from anywhere; project path below)
 SP=${1:?scratch dir}
-cd /Users/hany/Documents/cc.self/hy.cc.toolbox.files/history-files-merge
+cd "$(dirname "$0")/.."
 source venv/bin/activate
 for z in inputs/*.zip; do
   n=$(basename "$z" .zip)

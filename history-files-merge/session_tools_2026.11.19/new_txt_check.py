@@ -1,8 +1,10 @@
+import sys as _sys, pathlib as _pl; _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
+from hfm_config import SCRATCH
 import os,re,sys,csv,glob,hashlib,collections
 sys.argv=['x','/dev/null']
-src=open('/private/tmp/claude-502/-Users-hany-Documents-cc-self-hy-cc-toolbox-files-history-files-merge/27c525a3-50a2-42f8-9d1b-8af4703d9010/scratchpad/tools/txt_build.py',encoding='utf-8').read()
+src=open((SCRATCH+'/27c525a3-50a2-42f8-9d1b-8af4703d9010/scratchpad/tools/txt_build.py'),encoding='utf-8').read()
 exec(src.split("tot=collections.Counter(); items=[]")[0])
-SP='/private/tmp/claude-502/-Users-hany-Documents-cc-self-hy-cc-toolbox-files-history-files-merge/27c525a3-50a2-42f8-9d1b-8af4703d9010/scratchpad'
+SP=(SCRATCH+'/27c525a3-50a2-42f8-9d1b-8af4703d9010/scratchpad')
 # existing library
 lib={}
 for tp in glob.glob(T+'/topics/mc_*.txt'):

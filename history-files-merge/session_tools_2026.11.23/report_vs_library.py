@@ -1,9 +1,11 @@
 """Find reports in GoChina.consolidated that already exist in the library (exact: text + image SHA-256 sequence).
 Usage: python3 -I report_vs_library.py <plan.json>   (read-only; writes the plan)"""
+import sys as _sys, pathlib as _pl; _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
+from hfm_config import PROJ
 import re,sys,json,hashlib,html
 from pathlib import Path
 D=Path.home()/'Downloads/data.done'
-C=Path('/Users/hany/Documents/cc.self/hy.cc.toolbox.files/history-files-merge/outputs/GoChina.consolidated')
+C=Path((PROJ+'/outputs/GoChina.consolidated'))
 norm=lambda s: re.sub(r'\s+','',re.sub(r'<[^>]+>','',re.sub(r'(?s)<head>.*?</head>|<h1>.*?</h1>','',s))).lower()
 cache={}
 def sha(p):

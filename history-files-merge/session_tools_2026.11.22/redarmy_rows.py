@@ -1,9 +1,11 @@
 #!/usr/bin/env python3 -I
 """Add summary + manifest rows for the Word-derived reports of Great_Redarmy (per-report images/<stem>/manifest.csv). Dry run unless --go."""
+import sys as _sys, pathlib as _pl; _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
+from hfm_config import DD, SCRATCH
 import os,re,sys,html,csv,io,shutil,unicodedata
 GO='--go' in sys.argv
-d='/Users/hany/Downloads/data.done/mc_2026.11.19/html/topics/Great_Redarmy'; R=d+'/reports'
-BK='/private/tmp/claude-502/-Users-hany-Documents-cc-self-hy-cc-toolbox-files-history-files-merge/4d62ed09-50fc-4936-af43-187ad00942db/scratchpad/bak_redarmy'
+d=(DD+'/mc_2026.11.19/html/topics/Great_Redarmy'); R=d+'/reports'
+BK=(SCRATCH+'/4d62ed09-50fc-4936-af43-187ad00942db/scratchpad/bak_redarmy')
 nfc=lambda s:unicodedata.normalize('NFC',os.path.normpath(s))
 def rd(p):
     raw=open(p,'rb').read(); return list(csv.reader(io.StringIO(raw.decode('utf-8-sig'),newline=''))),raw.startswith(b'\xef\xbb\xbf'),('\r\n' if b'\r\n' in raw else '\n')

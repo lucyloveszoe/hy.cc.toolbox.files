@@ -1,8 +1,10 @@
 #!/usr/bin/env python3 -I
 """Reads route_plan.tsv; writes route_tiers.tsv. Tier A = region word of the target region in the title;
 tier B = best score >= 10 and >= 3x the second; tier C = the rest (not moved)."""
+import sys as _sys, pathlib as _pl; _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
+from hfm_config import PROJ
 import csv,re
-src=open('/Users/hany/Documents/cc.self/hy.cc.toolbox.files/history-files-merge/session_tools_2026.11.19/route_topics.py',encoding='utf-8').read().split('\n')
+src=open((PROJ+'/session_tools_2026.11.19/route_topics.py'),encoding='utf-8').read().split('\n')
 ns={'re':re};exec('\n'.join(src[25:60]),ns);REG=ns['REG']
 rows=list(csv.DictReader(open('route_plan.tsv',encoding='utf-8'),delimiter='\t'))
 A=[];B=[];C=[]

@@ -81,3 +81,7 @@ dmypy.json
 # macOS
 .DS_Store
 .claude/settings.local.json
+
+# img_near.py outputs (regenerable)
+near_cache.json
+near_images.tsv

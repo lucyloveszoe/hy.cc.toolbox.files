@@ -2,13 +2,15 @@
 """Read-only: compare the content of the 2018.06.18 source folder (+ its zips, extracted in the scratchpad) against
 data.frozen/Reports.series-2026.11.17 by bytes (sha256, size+type), by cleaned text (8-gram share) and by image hash.
 Run from the project folder with the venv python (imports clean_doc_noise / doc_to_txt from there)."""
+import sys as _sys, pathlib as _pl; _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
+from hfm_config import PROJ, DD, DL
 import os, re, sys, csv, zipfile, hashlib, subprocess, collections, unicodedata, concurrent.futures as cf
-sys.path.insert(0, '/Users/hany/Documents/cc.self/hy.cc.toolbox.files/history-files-merge')
+sys.path.insert(0, PROJ)
 import clean_doc_noise, doc_to_txt
 
-SRC = '/Users/hany/Downloads/data/2018.06.18_report_word_doc_txt_imgs'
-TGT = '/Users/hany/Downloads/data.frozen/Reports.series-2026.11.17'
-DONE = '/Users/hany/Downloads/data.done'
+SRC = (DL+'/data/2018.06.18_report_word_doc_txt_imgs')
+TGT = (DL+'/data.frozen/Reports.series-2026.11.17')
+DONE = DD
 SP = os.path.dirname(os.path.abspath(__file__))
 ZIPS = SP + '/src_zips'
 OUT = SP + '/compare_src.tsv'

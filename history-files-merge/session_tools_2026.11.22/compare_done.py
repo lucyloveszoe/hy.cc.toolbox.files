@@ -2,11 +2,13 @@
 """Read-only: compare data.done/至2014年旅行记录 (text, images) against the rest of data.done:
 txt library (mc txt/topics, gochina txt_merged), html report text (mc html + gochina reports_merged), and all images.
 Run from the project folder with the venv python."""
+import sys as _sys, pathlib as _pl; _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
+from hfm_config import PROJ, DD
 import os, re, sys, csv, html, hashlib, subprocess, collections, unicodedata, concurrent.futures as cf
-sys.path.insert(0, '/Users/hany/Documents/cc.self/hy.cc.toolbox.files/history-files-merge')
+sys.path.insert(0, PROJ)
 import clean_doc_noise, doc_to_txt
 
-DONE = '/Users/hany/Downloads/data.done'
+DONE = DD
 FOLD = DONE + '/至2014年旅行记录'
 SP = os.path.dirname(os.path.abspath(__file__))
 OUT = SP + '/compare_done.tsv'

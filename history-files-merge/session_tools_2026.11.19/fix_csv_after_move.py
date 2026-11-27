@@ -1,7 +1,9 @@
+import sys as _sys, pathlib as _pl; _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
+from hfm_config import PROJ, DD
 import csv,os,sys,glob,collections,shutil
 GO='--go' in sys.argv
-P='/Users/hany/Documents/cc.self/hy.cc.toolbox.files/history-files-merge'
-D='/Users/hany/Downloads/data.done/mc_2026.11.19'
+P=PROJ
+D=(DD+'/mc_2026.11.19')
 T=D+'/txt'; MERGED=T+'/mc_merged.txt'
 SP=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 rem=[l.rstrip('\n').split('\t') for l in open(SP+'/txt_cand/removed.tsv',encoding='utf-8')]

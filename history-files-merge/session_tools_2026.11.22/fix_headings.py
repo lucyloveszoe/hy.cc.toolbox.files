@@ -1,8 +1,10 @@
 #!/usr/bin/env python3 -I
 """Set <title> and <h1> of the renamed reports to the new file-name stem. Dry run unless --go."""
+import sys as _sys, pathlib as _pl; _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
+from hfm_config import DD
 import os,re,sys,html,shutil
 GO='--go' in sys.argv
-R='/Users/hany/Downloads/data.done/mc_2026.11.19/html/merges/mcjt-total/reports/'
+R=(DD+'/mc_2026.11.19/html/merges/mcjt-total/reports/')
 BK='bak_headings'
 pl=[l.rstrip('\n').split('\t') for l in open('bak_rename_csv/renamed.tsv',encoding='utf-8')]
 T=re.compile(r'(?is)(<title[^>]*>)(.*?)(</title>)'); H1=re.compile(r'(?is)(<h1[^>]*>)(.*?)(</h1>)')

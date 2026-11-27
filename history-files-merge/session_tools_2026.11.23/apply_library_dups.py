@@ -1,8 +1,10 @@
 """Delete the exact-duplicate reports listed in a plan.json (from report_vs_library.py), then the images no remaining
 report uses, then CSV rows whose output file is gone. Usage: python3 -I apply_library_dups.py <plan.json> <csv-backup-dir> [--go]"""
+import sys as _sys, pathlib as _pl; _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
+from hfm_config import PROJ
 import re,sys,csv,json,html,os,shutil
 from pathlib import Path
-C=Path('/Users/hany/Documents/cc.self/hy.cc.toolbox.files/history-files-merge/outputs/GoChina.consolidated')
+C=Path((PROJ+'/outputs/GoChina.consolidated'))
 plan=json.load(open(sys.argv[1])); bk=Path(sys.argv[2]); go='--go' in sys.argv
 dele={Path(a) for a,_ in plan['exact']}
 assert all(p.is_file() and str(p).startswith(str(C/'reports')) for p in dele)

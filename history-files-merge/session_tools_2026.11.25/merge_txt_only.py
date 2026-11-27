@@ -1,5 +1,7 @@
+import sys as _sys, pathlib as _pl; _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
+from hfm_config import PROJ
 import os,re,csv,hashlib,sys,unicodedata
-sys.path.insert(0,'/Users/hany/Documents/cc.self/hy.cc.toolbox.files/history-files-merge')
+sys.path.insert(0,PROJ)
 from doc_to_txt import strip_tail
 SRC,OUT=sys.argv[1],sys.argv[2]
 norm=lambda s: re.sub(r'\s+','',s).lower()

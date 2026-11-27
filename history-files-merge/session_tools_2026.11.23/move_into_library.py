@@ -1,7 +1,9 @@
 """Move the flat set into the library root (reports_merged/gochina) and append its CSV rows. Usage: <csv-backup-dir>"""
+import sys as _sys, pathlib as _pl; _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
+from hfm_config import PROJ
 import csv,os,shutil,sys
 from pathlib import Path
-F=Path('/Users/hany/Documents/cc.self/hy.cc.toolbox.files/history-files-merge/outputs/GoChina.flat')
+F=Path((PROJ+'/outputs/GoChina.flat'))
 L=Path.home()/'Downloads/data.done/gochina_2026.11.19/reports_merged'
 bk=Path(sys.argv[1]); bk.mkdir(parents=True)
 for n in ('gochina_summary.csv','gochina_images_manifest.csv'): shutil.copy2(L/n,bk/n)

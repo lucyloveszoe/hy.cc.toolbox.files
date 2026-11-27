@@ -1,9 +1,11 @@
 #!/usr/bin/env python3 -I
 """After the user deleted report files by hand: blank the summary rows, move the images that no report links any more
 to a quarantine, tag the manifest rows. Dry run unless --go."""
+import sys as _sys, pathlib as _pl; _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
+from hfm_config import DL
 import os,sys,shutil,collections,importlib.util
 spec=importlib.util.spec_from_file_location('q','quar_exact.py'); q=importlib.util.module_from_spec(spec); spec.loader.exec_module(q)
-GO='--go' in sys.argv; T=q.BASE+'/merges/mcjt-total'; QR='/Users/hany/Downloads/quarantine.removed.2026.11.22'
+GO='--go' in sys.argv; T=q.BASE+'/merges/mcjt-total'; QR=(DL+'/quarantine.removed.2026.11.22')
 # 1 summary rows whose report is gone
 csvs=[p for p in q.all_csvs()]
 gone=set()

@@ -1,11 +1,13 @@
 #!/usr/bin/env python3 -I
 """Quarantine exact duplicate reports in html/merges (vs library and inside merges). Dry run unless --go.
 usage: quar_exact.py [--go] ; quar_exact.py check"""
+import sys as _sys, pathlib as _pl; _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
+from hfm_config import DD, DL
 import os, re, sys, html, csv, shutil, hashlib, unicodedata, collections
 
-DATA = '/Users/hany/Downloads/data.done'
+DATA = DD
 BASE = DATA + '/mc_2026.11.19/html'
-QUAR = '/Users/hany/Downloads/quarantine.merges.2026.11.22'
+QUAR = (DL+'/quarantine.merges.2026.11.22')
 IMG = re.compile(r'<img[^>]*?src="([^"]+)"', re.I)
 TAG_STATUS = ' [output file no longer in data.done]'
 nfc = lambda s: unicodedata.normalize('NFC', s)

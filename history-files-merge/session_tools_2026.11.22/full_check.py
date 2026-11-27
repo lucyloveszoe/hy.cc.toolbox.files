@@ -1,6 +1,8 @@
 #!/usr/bin/env python3 -I
+import sys as _sys, pathlib as _pl; _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
+from hfm_config import DD
 import os,re,html,csv,io,unicodedata,collections
-D='/Users/hany/Downloads/data.done'; H=D+'/mc_2026.11.19/html'
+D=DD; H=D+'/mc_2026.11.19/html'
 nfc=lambda s:unicodedata.normalize('NFC',s)
 ATTR=re.compile(r'<(img|a|link|script|source|video|audio|iframe)\b[^>]*?\b(src|href)\s*=\s*"([^"]*)"',re.I)
 npages=0; links=collections.Counter(); broken=[]; remote=0; linked=set()

@@ -1,0 +1,3 @@
+# history-files-merge: no third-party Python packages are needed (every script uses the standard library only).
+# Install check:  source venv/bin/activate && pip install -r requirements.txt
+# External macOS tools used (not pip packages): textutil (.doc/.docx/.rtf text), sips (image sizes, thumbnails for img_near.py).

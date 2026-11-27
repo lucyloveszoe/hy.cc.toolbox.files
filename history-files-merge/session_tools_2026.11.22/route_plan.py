@@ -1,11 +1,13 @@
 #!/usr/bin/env python3 -I
+import sys as _sys, pathlib as _pl; _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
+from hfm_config import PROJ, DD
 import re, os, html, csv, collections, sys
-src=open('/Users/hany/Documents/cc.self/hy.cc.toolbox.files/history-files-merge/session_tools_2026.11.19/route_topics.py',encoding='utf-8').read().split('\n')
+src=open((PROJ+'/session_tools_2026.11.19/route_topics.py'),encoding='utf-8').read().split('\n')
 ns={'re':re,'os':os,'collections':collections}
 exec('\n'.join(src[25:64]),ns)           # kw, REG, TAG, TAGRE, FIELD
 exec('\n'.join(src[74:94]),ns)           # keyword_route
 REG=ns['REG']; keyword_route=ns['keyword_route']
-BASE='/Users/hany/Downloads/data.done/mc_2026.11.19/html'
+BASE=(DD+'/mc_2026.11.19/html')
 LOC2REG={'上海':'上海','东北军区藏经阁':'东北','川渝精品收藏馆':'川渝','江苏军区':'江浙','徐州':'江浙','山东军区冬瀌聚丽':'山东','湖南':'湖南','安徽军区':'安徽','湖北':'湖北','河南军区昔日传奇':'河南','河北':'河北','欧非':'其他海外','广东':'广东','海外':'其他海外','广西':'广西','福建':'福建','陕西':'陕西','云南':'云南','港澳':'港澳','新疆':'新疆','贵州':'贵州','台湾':'台湾','山西':'山西','海南':'海南','甘肃':'甘肃','江西':'江西','北京军区歌舞升平':'京津','天津':'京津'}
 def page(p):
     t=open(p,encoding='utf-8',errors='replace').read()

@@ -1,10 +1,12 @@
+import sys as _sys, pathlib as _pl; _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
+from hfm_config import PROJ, DD
 import os,re,sys,csv,hashlib,collections
-sys.path.insert(0,'/Users/hany/Documents/cc.self/hy.cc.toolbox.files/history-files-merge')
+sys.path.insert(0,PROJ)
 from clean_doc_noise import clean as wm_clean
 from clean_loose_txt import SPAM,SPAM2,strip_edges
 from doc_to_txt import strip_tail
 FOOT=re.compile(r'\s+-\s+[^\s-]*春色.*关闭注册[】\]]?\s*$')
-T='/Users/hany/Downloads/data.done/mc_2026.11.19/txt'
+T=(DD+'/mc_2026.11.19/txt')
 OUT=sys.argv[1]
 STAMP=re.compile(r'\[?[ \t]*本帖最[后後]由[^\n\]]*?[于於][^\n\]]*?[编編][辑輯][ \t]*\]?')
 NOTICE=re.compile(r'(?:[^\s，,。]{1,20}[，,][ \t]*)?(?:如果您要查看本帖[隐隱]藏[内內]容请[回]?[复復]|本帖[隐隱]藏的[内內]容需要积分高于[ \t]*\d+[ \t]*才可[浏瀏][览覽](?:[，,][ \t]*您当前积分为[ \t]*\d+)?|本帖[隐隱]藏的[内內]容需要[回]?[复復]才可以[浏瀏][览覽])')

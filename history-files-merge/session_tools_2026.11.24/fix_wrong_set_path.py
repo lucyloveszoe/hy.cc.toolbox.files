@@ -1,6 +1,8 @@
 """One-off repair of a to_reports_merged.py run where SET had been turned into an absolute path (fixed in the script)."""
+import sys as _sys, pathlib as _pl; _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
+from hfm_config import DD
 import os,sys,re,csv,shutil
-P=os.path.abspath('.');W=P+'/141';D='/Users/hany/Downloads/data.done/141_2026.11.24/reports_merged'
+P=os.path.abspath('.');W=P+'/141';D=(DD+'/141_2026.11.24/reports_merged')
 os.makedirs(D+'/141/images/141');BADI='images/'+W+'/';REL=os.path.relpath(W,D)+'/'   # ../../../../Documents/.../141/
 names=os.listdir(W);pages=[n for n in names if n.endswith('.html')];imgs=[n for n in names if not n.endswith('.html')]
 print(len(pages),len(imgs))

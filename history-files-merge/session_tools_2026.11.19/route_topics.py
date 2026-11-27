@@ -4,7 +4,7 @@ Priority per story: (1) series-topic folder it came from (own folder or any dupl
 (4) otherwise 待定义.  Nothing is deleted; mc_merged.txt stays the master."""
 import csv, os, re, sys, collections
 
-T = os.environ.get('MC_T', '/Users/hany/Downloads/data.done/mc_2026.11.19/txt')
+T = os.environ.get('MC_T', os.path.join(os.environ.get('HFM_DATA_DONE', os.path.expanduser('~/Downloads/data.done')), 'mc_2026.11.19/txt'))
 OUT = sys.argv[1]
 os.makedirs(OUT, exist_ok=True)
 

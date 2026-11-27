@@ -1,6 +1,8 @@
 #!/usr/bin/env python3 -I
+import sys as _sys, pathlib as _pl; _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
+from hfm_config import DD
 import os,re,html,csv,io,collections,unicodedata
-H='/Users/hany/Downloads/data.done/mc_2026.11.19/html'
+H=(DD+'/mc_2026.11.19/html')
 nfc=lambda s:unicodedata.normalize('NFC',os.path.normpath(s))
 SIG={b'\xff\xd8\xff':('.jpg','.jpeg'),b'\x89PNG':('.png',),b'GIF8':('.gif',),b'BM':('.bmp',)}
 def sniff(p):

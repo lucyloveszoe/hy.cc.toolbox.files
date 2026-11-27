@@ -1,6 +1,8 @@
 #!/usr/bin/env python3 -I
+import sys as _sys, pathlib as _pl; _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
+from hfm_config import DD
 import os,re,collections,html
-B='/Users/hany/Downloads/data.done/mc_2026.11.19/html'; KEY='以下内容需要回复才能看到'
+B=(DD+'/mc_2026.11.19/html'); KEY='以下内容需要回复才能看到'
 files=0; lines=0; per=collections.Counter(); forms=collections.Counter(); ctx=collections.Counter(); roots=collections.Counter()
 for dp,_,fs in os.walk(B):
     for f in fs:

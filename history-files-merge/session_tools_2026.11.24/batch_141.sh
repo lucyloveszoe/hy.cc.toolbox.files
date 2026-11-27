@@ -3,7 +3,7 @@
 #   141-all==Report_141_II, a141==Report_141_VI, Report_141_V==y141  -> keep Report_141_II/VI/V names out, process 141-all, a141, y141? (see SKIP)
 SP=${1:?scratch dir}
 SKIP=(Report_141_II Report_141_VI y141 141_html_01)
-cd /Users/hany/Documents/cc.self/hy.cc.toolbox.files/history-files-merge
+cd "$(dirname "$0")/.."
 source venv/bin/activate
 for z in inputs/*.zip; do
   n=$(basename "$z" .zip)

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3 -I
+import sys as _sys, pathlib as _pl; _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
+from hfm_config import DL
 import os,hashlib,pickle,shutil,sys
-S='/Users/hany/Downloads/data/2018.06.18_report_word_doc_txt_imgs'
+S=(DL+'/data/2018.06.18_report_word_doc_txt_imgs')
 GO='--go' in sys.argv
 def sha(p):
     h=hashlib.sha256()

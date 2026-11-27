@@ -1,6 +1,8 @@
+import sys as _sys, pathlib as _pl; _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
+from hfm_config import DD, SCRATCH
 import csv,os,re,glob,collections,hashlib
-D='/Users/hany/Downloads/data.done/mc_2026.11.19'; T=D+'/txt'
-SP='/private/tmp/claude-502/-Users-hany-Documents-cc-self-hy-cc-toolbox-files-history-files-merge/27c525a3-50a2-42f8-9d1b-8af4703d9010/scratchpad'
+D=(DD+'/mc_2026.11.19'); T=D+'/txt'
+SP=(SCRATCH+'/27c525a3-50a2-42f8-9d1b-8af4703d9010/scratchpad')
 Q=SP+'/txt_sources_removed'
 res=collections.OrderedDict(); fail=[]
 def chk(name,ok,info=''):

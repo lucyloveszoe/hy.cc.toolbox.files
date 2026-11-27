@@ -1,8 +1,10 @@
 #!/usr/bin/env python3 -I
 """Read-only scan of html/merges: exact + near duplicates inside merges, and exact vs topics/locations."""
+import sys as _sys, pathlib as _pl; _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
+from hfm_config import DD
 import os, re, sys, html, hashlib, unicodedata, collections, json
 
-BASE = '/Users/hany/Downloads/data.done/mc_2026.11.19/html'
+BASE = (DD+'/mc_2026.11.19/html')
 OUT = os.path.dirname(os.path.abspath(__file__))
 IMG = re.compile(r'<img[^>]*?src="([^"]+)"', re.I)
 

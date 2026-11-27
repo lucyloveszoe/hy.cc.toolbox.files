@@ -1,5 +1,7 @@
 #!/usr/bin/env python3 -I
 """Rename numeric-named reports in mcjt-total/reports to the first line of the primary post. Dry run unless --go."""
+import sys as _sys, pathlib as _pl; _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
+from hfm_config import SCRATCH
 import os,re,sys,html,csv,collections,unicodedata,shutil,importlib.util
 spec=importlib.util.spec_from_file_location('q','quar_exact.py'); q=importlib.util.module_from_spec(spec); spec.loader.exec_module(q)
 GO='--go' in sys.argv
@@ -55,7 +57,7 @@ for p in q.all_csvs():
             if c in mp: hit.append((ri,c))
     if hit: cs.append((p,rows,bom,eol,hit,k))
 print('csv files',len(cs),'rows',sum(len(c[4]) for c in cs))
-BK='/private/tmp/claude-502/-Users-hany-Documents-cc-self-hy-cc-toolbox-files-history-files-merge/4d62ed09-50fc-4936-af43-187ad00942db/scratchpad/bak_rename_csv'
+BK=(SCRATCH+'/4d62ed09-50fc-4936-af43-187ad00942db/scratchpad/bak_rename_csv')
 os.makedirs(BK)
 for p,rows,bom,eol,hit,k in cs:
     shutil.copy2(p,BK+'/'+os.path.basename(p))

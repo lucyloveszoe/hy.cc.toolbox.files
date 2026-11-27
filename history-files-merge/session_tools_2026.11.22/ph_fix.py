@@ -1,7 +1,9 @@
 #!/usr/bin/env python3 -I
+import sys as _sys, pathlib as _pl; _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
+from hfm_config import DD, DL
 import os,re,sys,shutil,collections
 GO='--go' in sys.argv
-B='/Users/hany/Downloads/data.done/mc_2026.11.19/html'; KEY='以下内容需要回复才能看到'; BK='/Users/hany/Downloads/backup.placeholder.2026.11.22'
+B=(DD+'/mc_2026.11.19/html'); KEY='以下内容需要回复才能看到'; BK=(DL+'/backup.placeholder.2026.11.22')
 BR=r'<br\s*/?>'
 full=re.compile(r'(?P<pre>(?:'+BR+r'\s*)+)'+KEY+r'(?P<post>(?:\s*'+BR+r')*)',re.I)
 CJ=re.compile(r'[一-鿿]')

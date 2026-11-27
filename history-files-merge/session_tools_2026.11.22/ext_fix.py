@@ -1,9 +1,11 @@
 #!/usr/bin/env python3 -I
 """Rename image files whose extension does not match their header (section 40.5), repoint html src, CSV outputs and images_merged.manifest.csv. Dry run unless --go."""
+import sys as _sys, pathlib as _pl; _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
+from hfm_config import DD, SCRATCH
 import os,re,sys,html,csv,io,shutil,collections,unicodedata
 GO='--go' in sys.argv
-D='/Users/hany/Downloads/data.done'; L=D+'/mc_2026.11.19/images'; H=D+'/mc_2026.11.19/html'
-BK='/private/tmp/claude-502/-Users-hany-Documents-cc-self-hy-cc-toolbox-files-history-files-merge/4d62ed09-50fc-4936-af43-187ad00942db/scratchpad/bak_ext'
+D=DD; L=D+'/mc_2026.11.19/images'; H=D+'/mc_2026.11.19/html'
+BK=(SCRATCH+'/4d62ed09-50fc-4936-af43-187ad00942db/scratchpad/bak_ext')
 nfc=lambda s:unicodedata.normalize('NFC',os.path.normpath(s))
 SIG={b'\xff\xd8\xff':'.jpg',b'\x89PNG':'.png',b'GIF8':'.gif',b'BM':'.bmp'}
 OK={'.jpg':('.jpg','.jpeg'),'.png':('.png',),'.gif':('.gif',),'.bmp':('.bmp',)}

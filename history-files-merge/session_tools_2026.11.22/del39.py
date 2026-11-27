@@ -1,8 +1,10 @@
 #!/usr/bin/env python3 -I
+import sys as _sys, pathlib as _pl; _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
+from hfm_config import DD, DL
 import csv,os,re,html,hashlib,sys,unicodedata
 GO='--go' in sys.argv
-D='/Users/hany/Downloads/data.done'; F=D+'/至2014年旅行记录'; FZ='/Users/hany/Downloads/data.frozen/Reports.series-2026.11.17/'
-S='/Users/hany/Downloads/data/2018.06.18_report_word_doc_txt_imgs/'
+D=DD; F=D+'/至2014年旅行记录'; FZ=(DL+'/data.frozen/Reports.series-2026.11.17/')
+S=(DL+'/data/2018.06.18_report_word_doc_txt_imgs/')
 def sha(p):
     h=hashlib.sha256()
     with open(p,'rb') as f:
