@@ -5,7 +5,13 @@ from pathlib import Path
 def fixname(info):
     n = info.filename
     if not (info.flag_bits & 0x800):
-        raw = n.encode('cp437', errors='strict') if all(ord(c) < 256 for c in n) else None
+        # zipfile decodes such names as cp437, which yields box-drawing chars above U+00FF (e.g. '╔'), so test the
+        # cp437 round trip, not ord < 256 (that test left whole zips garbled, 2026-11-27). A name that does not
+        # encode as cp437 was already decoded correctly (e.g. from a Unicode path extra field): keep it.
+        try:
+            raw = n.encode('cp437', errors='strict')
+        except UnicodeEncodeError:
+            raw = None
         if raw is not None:
             for enc in ('gbk', 'big5hkscs'):
                 try:
@@ -37,4 +43,5 @@ def main(z, dest):
         nfile += 1
     print(f'{os.path.basename(z)}: {nfile} files, {skipped} skipped')
 
-main(sys.argv[1], sys.argv[2])
+if __name__ == '__main__':
+    main(sys.argv[1], sys.argv[2])
