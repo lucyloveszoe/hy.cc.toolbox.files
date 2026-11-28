@@ -596,6 +596,31 @@ def get_posts(root: Node, page: Path):
                 posts.append({"author": author, "text": txt, "imgs": imgs})
     if posts:
         return posts
+    # (ak) SMF 1.x boards (2006 7chinahappy.net/smf saves): one <td valign=top width="85%"> per post; its direct
+    #      children are a subject table, <hr class=hrcolor>, then the body; <div class=signature> is dropped;
+    #      author = first <b> of the member cell (the <td> before it in the same row)
+    for t in root.walk():
+        if t.tag != "td" or t.attrs.get("width", "") != "85%":
+            continue
+        kids = t.children
+        hr = next((i for i, c in enumerate(kids) if isinstance(c, Node) and c.tag == "hr"
+                   and "hrcolor" in c.cls()), None)
+        if hr is None:
+            continue
+        body = Node("div")
+        body.children = [c for c in kids[hr + 1:] if not (isinstance(c, Node) and (
+            "signature" in c.cls() or c.tag == "hr"))]
+        author = ""
+        sibs = [c for c in (t.parent.children if t.parent else []) if isinstance(c, Node) and c.tag == "td"]
+        if sibs and sibs[0] is not t:
+            b = next((x for x in sibs[0].walk() if x.tag == "b"), None)
+            author = re.sub(r"\s+", " ", text_of(b)).strip() if b is not None else ""
+        imgs = []
+        txt = tidy(render(body, page, imgs))
+        if txt or imgs:
+            posts.append({"author": author, "text": txt, "imgs": imgs})
+    if posts:
+        return posts
     # (af) plain article pages with no forum markup (e.g. 医院性游记.HTM): the whole <body> is one post, but only
     #      when it holds >= 1500 CJK characters (stubs, error pages and Q&A snippets stay unsupported)
     body = next((t for t in root.walk() if t.tag == "body"), None)
