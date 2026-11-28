@@ -23,6 +23,8 @@ import sys
 import unicodedata
 
 FOOTER = re.compile(r'\s*-\s*◎『.*$')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from strip_name_footers import peel  # noqa: E402  board footers / heads (2026-11-28)
 
 
 def key(s):
@@ -68,7 +70,7 @@ def main():
             if x is None:
                 sys.exit(f'not in plan: {p}')
             kind = x['kind']
-            if kind == 'new' and x['w'] >= 5 * x['h']:
+            if kind in ('new', 'dup-in-batch') and x['w'] >= 5 * x['h']:   # also batch repeats (fix 2026-11-28)
                 kind = 'ad'
             stats[kind] = stats.get(kind, 0) + 1
             if kind in ('ui', 'ad', 'fake'):
@@ -85,9 +87,9 @@ def main():
             if kind == 'new' and x['sha'] not in new_files:
                 page, sep, orig = r[si].partition('_files/')
                 if sep:
-                    title = FOOTER.sub('', os.path.basename(page)).strip()
+                    title = peel(FOOTER.sub('', os.path.basename(page)).strip())
                     while title.startswith('【新提醒】'):
-                        title = title[len('【新提醒】'):].lstrip()
+                        title = peel(title[len('【新提醒】'):].lstrip())
                     nm = f'{title}_{os.path.basename(orig)}'
                 else:            # loose image of the zip (no page): '<parent folder or root>__<name>'
                     par = os.path.basename(os.path.dirname(r[si])) or name
@@ -116,6 +118,8 @@ def main():
     if not go:
         print('dry run; add --go')
         return
+    if not os.path.exists(flat_man):     # new flat folder: start the manifest (images_merged format, BOM + LF)
+        open(flat_man, 'wb').write(b'\xef\xbb\xbfno,file,sha256,bytes,copies_merged,original_paths\n')
     rows, dump = load_csv(flat_man)
     last = int(rows[-1][0]) if len(rows) > 1 else 0
     for i, m in enumerate(man_rows, 1):

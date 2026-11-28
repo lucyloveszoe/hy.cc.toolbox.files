@@ -25,8 +25,14 @@ ROOTS = [a for a in sys.argv[1:] if a != '--go']
 GO = '--go' in sys.argv
 DATE = r'\d{4}-\d{1,2}-\d{1,2}\s+\d{1,2}:\d{2}(?::\d{2})?'
 PAT = {
-    'reply placeholder': re.compile(r'以下内容(?:需要|跟帖)回复才能看到'),
-    'rating header': re.compile(r'本帖最近(?:评分记录|評分記錄)'),    # traditional form added 2026-11-28 (2010 mc)
+    'reply placeholder': re.compile(r'以下内容(?:需要|跟帖)回复才能看到'
+                                    r'|\S{1,30}，如果您要查看本帖隐藏内容请回复|本帖隐藏的内容'),   # 2026-11-28 (shlf)
+    'rating header': re.compile(r'本帖最近(?:评分记录|評分記錄)|评分人数|評分人數'),   # 評分人數: crazys.net Discuz X (游客同盟 2026-11-28)
+    'view notice': re.compile(r'（此文章只有威望大於等於\s*\d+\s*的才能查看）|扣點文章內容顯示如下\s*[:：]?'),  # 2003 Ikonboard boards
+    'old edit stamp': re.compile(r'\[這個文章最後由\S{1,30}在\s*\d{4}/\d{1,2}/\d{1,2}\s+\d{1,2}:\d{2}\s*[ap]m\s*第\s*\d+\s*次編輯\]'),
+    'action bar': re.compile(r'複製\s*道具\s*收藏\s*分享\s*評分|收藏\s*分享\s*[评評]分'),
+    'search tags': re.compile(r'實用相關搜尋\s*[:：][^\n]{0,80}|搜索更多相关主题的帖子\s*[:：][^\n]{0,80}'),    # traditional 2026-11-28 (2010 mc); Discuz X 评分人数 (shlf)
+    'mod stamp': re.compile(r'本主题由\s*\S{1,20}\s*于\s*[^\n]{1,25}?\s*(?:设置高亮|加入精华|设置置顶|关闭主题|移动|提升|推荐)'),
     'paid notice': re.compile(r'(?:购买主题\s*)?(?:已购买人数\s*:?\s*\d+\s*\(?记录\)?\s*)?本主题需向作者支付[^\n]{0,20}?才能浏览'
                               r'|售价\(现金\):\s*\d+\s*\S{1,3}|已购买人数:\s*\d+\s*\(记录\)|购买主题'),
     'edit stamp': re.compile(r'由\s*\S{1,30}\s*最[後后][編编][輯辑]於\s*\d{1,4}-\d{1,2}-\d{1,4}\s+\d{1,2}:\d{2}(?:\s*[AP]M)?'),
@@ -35,7 +41,10 @@ PAT = {
                              r'|收藏\s*分享|【赠送金币】：点击发帖评价，即送金币|上海龙凤特别声明：'
                              r'|凡在龙凤特荐中的MM，照片完全真实，无PS,服务到位，不虚报，待人热情,态度好'),
 }
-RATING = re.compile(r'\S{1,20}\s+(?:经验|威望|金钱|贡献|军币|金币|爽幣|积分)\s*[+-]\s*\d+(?:\s+[^\n]{0,80}?)?\s+' + DATE)
+RATING = re.compile(r'\S{1,20}\s+(?:经验|威望|金钱|贡献|军币|金币|爽幣|积分)\s*[+-]\s*\d+(?:\s+[^\n]{0,80}?)?\s+' + DATE
+                    + r'|\S{1,20}\s*[:：]\s*(?:[^\s；;:：+]{1,6}\s*[+-]\s*\d+\s*[；;]?\s*)+|查看全部评分'   # Discuz X: 'who: 技师+10；点评+5；…'
+                    + r'|\S{1,20}\s*[:：][^\n]{0,40}?戰鬥力\s*[+-]\s*\d+')   # crazys.net: 'who: [comment]戰鬥力 + N'
+LIKES = re.compile(r'\d{1,4}|讚|普|噓')     # like counters right after the Discuz X action bar
 DATE_AFTER = re.compile(r'(?:\s|<[^>]{0,200}>){0,12}\d{2}-\d{2}-\d{4}')
 
 
@@ -67,13 +76,15 @@ def cut_index(body, c):
     return ''.join(out)
 
 
+HOT_HTML = re.compile(r'楼主热贴(?:(?!<img|</section>).){0,800}?(?=</section>)', re.S | re.I)   # Discuz 7 sidebar list
+HOT_TXT = re.compile(r'\n楼主热贴\n(?:[^\n]{0,60}\n){0,20}[^\n]{0,60}\Z')                          # (游客同盟 2026-11-28)
 INDEX_TXT = re.compile(r'\n(?:希望得到大家的紅心[^\n]*|貼圖\n\d{2}-\d{2}-\d{4})\n.*\Z', re.S)
 MAICHUN = re.compile(r'(?:\?u>[^\s?]{0,12}\?)?font style="font-size:0px[^"]*">bbs\.maichun\.org[!-~]*')
 
 
 def clean_units(units, c):
     """units: list of text strings (text nodes or lines). Returns new list; whole-unit removals only."""
-    out, in_rating = [], False
+    out, in_rating, likes = [], False, 0
     for u in units:
         s = u.strip()
         if not s:
@@ -84,10 +95,24 @@ def clean_units(units, c):
             out.append('')
             continue
         in_rating = False
+        if likes and LIKES.fullmatch(s):
+            likes -= 1
+            c['like counter'] += 1
+            out.append('')
+            continue
+        likes = 0
         hit = next((k for k, p in PAT.items() if p.fullmatch(s)), None)
         if hit:
             c[hit] += 1
             in_rating = hit == 'rating header'
+            likes = 5 if s.startswith('複製') else 0
+            if s in ('评分人数', '評分人數'):     # Discuz X: the rater count stands as a bare number right before it
+                j = len(out) - 1
+                while j >= 0 and not out[j].strip():
+                    j -= 1
+                if j >= 0 and re.fullmatch(r'\d{1,3}', out[j].strip()):
+                    out[j] = ''
+                    c['rating count'] += 1
             out.append('')
         else:
             out.append(u)
@@ -118,6 +143,8 @@ def main():
                             parts[i] = html.escape(nw, quote=True)
                     body = ''.join(parts)
                     body = cut_index(body, c)
+                    body, k = HOT_HTML.subn('', body)
+                    c['hot threads'] += k
                     body = re.sub(r'(?:<br\s*/?>\s*){3,}', '<br>\n<br>\n', body)
                     body = re.sub(r'(?:<br\s*/?>\s*)+(?=</section>)', '', body)
                     t = head + sep + body
@@ -126,6 +153,8 @@ def main():
                     c['maichun remnant'] += k
                     t, k = INDEX_TXT.subn('', t)
                     c['author thread index'] += k
+                    t, k = HOT_TXT.subn('\n', t)
+                    c['hot threads'] += k
                     lines = clean_units(t.split('\n'), c)
                     t = '\n'.join(x.rstrip() for x in lines)
                     t = re.sub(r'\n{3,}', '\n\n', t)

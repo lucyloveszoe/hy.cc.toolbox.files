@@ -25,7 +25,19 @@ FOOTERS = [re.compile(p) for p in (
     r'\s*-\s*上 海 原 创 信 息\s*-\s*★ 上 海 军 区 ★\s*-\s*【买春堂】.*$',
     r'\s*买春堂\s*-\s*Powered by Discuz!$',
     r'\s*韓國夜遊\s*-$',
+    # 2026-11-28 (data/shlf): 爱上海 boards incl. hand-added copy markers (`交友网2`, `Discuz!b`, `Discuzb!`, `gDiscuz!`);
+    # a `第N页` before the board is a real page number and stays
+    r'\s*-\s*(?:推油、足浴、FL及其他|桑拿会所体验区|女生自荐区|女生交流区|版主推荐区)\s*-\s*爱上海同城对对碰交友网\s*\d?\s*'
+    r'(?:-\s*Powered by [a-z]?Discuz[a-z0-9]?!?[a-z0-9]?)?$',          # title lines often lack the Powered-by part
+    r'\s*-\s*【寻凤阁[^】]{2,8}】\s*-\s*寻凤阁(?:\s*-\s*(?:Powered by Discuz!|www\.hhxx\.us))?$',
+    r'\s*-\s*(?:女生自荐区)\s*-\s*爱上海同城对对碰交友网$',
+    r'\s*-\s*『试发新贴处』\s*-\s*上海金屋藏娇\s*上海最好的交友论坛$',
+    r'\s*-\s*【[^】]{2,6}】\s*-\s*上海龙凤\s+上海楼凤\s+上海桑拿$',
     r'\s*-\s*Powered by Discuz!$',
+)]
+HEADS = [re.compile(p) for p in (     # board heads, peeled like the footers (2026-11-28: 春风楼)
+    r'^【[\s\u3000]*】\s*',          # empty bracket head (爱上海/寻凤阁 sticky-post marker)
+    r'^上海春风楼同城交友论坛,[^,]{1,20}\([^)]{2,6}\),[^,]{1,20}\([^)]{2,6}\),\s*',
 )]
 HEAD = '【新提醒】'
 
@@ -36,7 +48,7 @@ def key(s):
 
 def peel(s):
     while True:
-        for f in FOOTERS:
+        for f in FOOTERS + HEADS:
             n = f.sub('', s)
             if n != s:
                 s = n.rstrip()
