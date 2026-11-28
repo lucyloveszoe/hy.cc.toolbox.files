@@ -19,6 +19,7 @@ Mid-point consolidation (2026-11-27). This is the file to follow for new batches
 7. **Never print document bodies** (explicit content). Counts, titles and short context only.
 8. **Re-list the real state at the start of every step.** The user moves/renames/deletes between turns (`txt/`, `images.only/`, whole roots).
 9. **Report honestly:** counts before/after, what was skipped, what could not be resolved.
+10. **Default layout of every finished set (since 2026-11-28): `data.done/<set>_<date>/{html,images,txt}`** (§8). Report pictures live under `html/`, standalone pictures in `images/`, text in `txt/`; nothing else at the set's top level. Intermediate layouts (layout A per zip, staging roots) exist only in scratch or during a run.
 
 ## 1. Pipeline at a glance
 
@@ -30,9 +31,9 @@ Three buckets are produced at step 4 and each gets its own step-5/6 treatment:
 
 | Bucket | Content | Final form |
 |---|---|---|
-| **reports** | html pages **with images embedded/linked** (+ their images) | flat `reports_merged/<set>/` + `images/`, CSVs; then routed by topic/location into roots |
-| **images-only** | images with no report | one flat folder `<first folder>__<name>`, manifest with SHA-256 |
-| **txt-only** | all text: pages without images (html → txt), loose txt, doc/docx/pdf text | one `txt_merged.txt` + manifest; then split into topic files |
+| **reports** | html pages **with images embedded/linked** (+ their images) | `<set>/html/` (pages + `images/<source>/`, §8); in mc routed by topic/location into roots |
+| **images-only** | images with no report | `<set>/images/` (flat, `<first folder>__<name>`, SHA-256 manifest during the run) |
+| **txt-only** | all text: pages without images (html → txt), loose txt, doc/docx/pdf text | `<set>/txt/txt_merged.txt` + manifest; in mc split into `txt/topics/` files |
 
 ## 2. Step 1 - Inventory the zips
 
@@ -180,7 +181,7 @@ Cross-set comparison (new zip vs library): signature = md5(normalized text) + im
 
 ### 6.1 reports → roots by topic / location
 
-Target library: `data.done/mc_2026.11.19/html/{merges,topics,locations}/<root>/{reports,images,<root>_summary.csv,<root>_images_manifest.csv}`; flat sets under `<set>/reports_merged/`.
+Target library: `data.done/mc_2026.11.19/html/{topics,locations}/<root>/{reports,images/<root>,<root>_summary.csv,<root>_images_manifest.csv}` + `html/mcjt-total` (unrouted); other sets keep the plain `<set>/html/` layout of §8 (no topic routing).
 
 1. **Flatten first** (all pages to `reports/`, `images/<root>/` flat; rewrite `<img src>` with `relpath`; own CSVs repointed).
 2. **Clean** (noise, footers) → **dedupe** against `topics` + `locations` + inside the source (§5.1) → only then route.
@@ -223,24 +224,37 @@ Library: `txt/topics/mc_<topic>.txt` + `.manifest.csv` (`no,file,start_line,end_
 - `images_copied` = distinct image files per page. Per-report `images/<stem>/manifest.csv` (Word-derived) is not an image.
 - A tool that takes a **set name** must not pass it through `os.path.abspath` (H§63.3 pitfall).
 
-## 8. Final layouts
+## 8. Final layout (default for every set since 2026-11-28, user's decision)
 
 ```
-data.done/<batch>/
-  reports_merged/<set>_summary.csv, <set>_images_manifest.csv, <set>/<page>.html, <set>/images/<set>/<img>   (flat, layout B)
-  txt_merged.txt + txt_merged.manifest.csv                                                                   (txt-only)
-  images-only.merged/ + images_merged.manifest.csv                                                           (images-only)
-data.done/mc_2026.11.19/{html/{merges,topics,locations}/<root>/…, images-only/ (was images/), txt/topics/}                      (routed library)
+data.done/<set>_<date>/
+  html/     reports and the pictures they link - nothing else
+            flat set:        html/<page>.html + html/images/<source>/<img>                   (FDZone, hk9394, Society, 游客同盟 = —夜游 + yktm)
+            several sources: html/<collection>/<page>.html + html/<collection>/images/<collection>/<img>   (141/141-U, gochina, forum/come2meAsia)
+            routed library:  mc only: html/{locations,topics}/<root>/reports/<page>.html + <root>/images/<root>/<img>
+                             + <root>_summary.csv / <root>_images_manifest.csv; html/mcjt-total = unrouted
+  images/   standalone pictures only (linked by no page): flat, names `<first folder>__<name>`; may stay empty
+  txt/      text-only stories: txt_merged.txt + txt_merged.manifest.csv (mc: txt/topics/mc_<topic>.txt + .manifest.csv + routing_report.csv); may stay empty
 ```
 
-Flat-layout naming: plain names; a clashing name gets `<zip>__` on every member (and `<zip>__<folder>__` if still clashing); strip the prefix afterwards only where unique (`strip_prefixes.py`).
+Rules (checked by `audit_html_links.py`, §10-2):
+1. A picture linked by any page lives under `html/`, never under `images/`; a picture in `images/` is linked by no page. When a report picture is found in `images/` (FDZone 2026-11-28), move it under `html/images/<set>/` with `move_root_folder.py` and keep the empty `images/`.
+2. Links are relative, `images/<source>/<img>` from the page folder (routed library: `../images/<root>/<img>`), written with `html.escape`, never percent-encoded, never remote. Every page link resolves to a real image; no orphan picture under `html/`.
+3. `txt/` holds every text file of the set (no `.txt` in `html/`).
+4. **CSVs:** summary / image-manifest CSVs are working files of a run (repointing, coverage, audits). Finished sets carry none (user's rule, confirmed 2026-11-28); only `mc_2026.11.19` keeps its root CSVs because the routing tools need them. Do not restore CSVs to a finished set unasked.
+5. Set folder names: `<name>_<YYYY.MM.DD>` (date of the run that built it); empty top-level folders `images/` / `txt/` are part of the layout (not an audit problem).
+6. Building a new set: process into scratch (layout A per zip, §4.2), de-dup (§5), then write the set straight into this layout: pages (flat, names cleaned §4.5) into `html/` with pictures into `html/images/<source>/`, unreferenced photos into `images/`, text stories into `txt/txt_merged.txt` + manifest. Older tools that write `reports_merged/`, `images-only.merged/` or a top-level `images/` for report pictures (`to_reports_merged.py`, `merge_into_set.py`, `img_merge.py` default dest) need the new target paths passed explicitly; re-run `audit_html_links.py` after.
+
+Name clashes in a flat set: plain names; a clashing name gets `<zip>__` on every member (and `<zip>__<folder>__` if still clashing); strip the prefix afterwards only where unique (`strip_prefixes.py`). Picture names are compared NFC + lower case (APFS is case-insensitive).
 
 ## 9. Script map
 
 | Stage | Script | Folder |
 |---|---|---|
 | inventory | `zip_vs_library.py` (which zip pages are already in the library, read-only) | `.27` |
+| existing sets → routed library | `restage_flat_set.py` (layout-B set → flat library root, every crossing CSV/html path fixed), `rename_pages.py` (rename pages + repoint), `distribute_leftover_rows.py` (empty a staging root's CSVs into the roots that hold their outputs; blank rows → unrouted root) | `.28` |
 | full read-only audit of data.done | `audit_data_done.py [DD]` (exit 1 on problems) | `.27` |
+| html links / orphan images in the `<set>/{html,images,txt}` layout | `audit_html_links.py [DD]` (read-only: every `<img src>` under `<set>/html` resolves to a real image, every image under `<set>/html` is linked; exit 1 on problems; 2026-11-28: 9 html folders, 10,204 pages, 87,179 images, 93,734 links, 0 problems) | `.28` |
 | fixes found by the audit | `fix_image_ext.py [DD] [--go --backup-dir D]`, `clean_txt_library.py <txt…> [--go --backup-dir D]` | `.27` |
 | txt/docx noise clean-up in a raw archive | `clean_text_docs.py <archive> [--go --backup-dir D]` | `.27` |
 | clean saved pages in a raw archive, in place | `optimize_pages_in_place.py <archive> <processed base> <folders> [--go --quarantine Q]` | `.27` |
@@ -265,7 +279,7 @@ Flat-layout naming: plain names; a clashing name gets `<zip>__` on every member 
 ## 10. Verification checklist (after every step, report counts)
 
 1. **Page coverage:** per root, html + txt + unsupported rows == number of `.htm/.html` files in the extracted zip; unsupported pages outside `_files/` = 0 (found 54 missed pages once, H§46-7).
-2. **Library roots in `html/{locations,topics,merges}` use the flat layout `reports/*.html` + `images/<root>/`; `merge_report_folders.py audit` does not recognise it and prints `html 0 images 0 … ISSUES: none` (looks clean, checks nothing). Use `session_tools_2026.11.27/check_library_roots.py <root dir…>` there** (2026-11-27: 14 touched roots, 0 problems). Reports: every local `<img src>` resolves (unescape, NFC, skip `http:`/`data:`); 0 remote; well-formed (`</html>`, balanced `<section>`); 0 orphan images; 0 fake images; extension = header; 0 empty folders (`.DS_Store` ignored).
+2. **Layout and html links (every set):** `session_tools_2026.11.28/audit_html_links.py [DD]` (read-only): every `<img src>` of every page under `<set>/html` resolves to a real image, 0 orphan pictures under `html/`; exit 1 on problems. **mc library roots in `html/{locations,topics}` use the flat layout `reports/*.html` + `images/<root>/`; `merge_report_folders.py audit` does not recognise it and prints `html 0 images 0 … ISSUES: none` (looks clean, checks nothing). Use `session_tools_2026.11.27/check_library_roots.py <root dir…>` there** (2026-11-27: 14 touched roots, 0 problems). Reports: every local `<img src>` resolves (unescape, NFC, skip `http:`/`data:`); 0 remote; well-formed (`</html>`, balanced `<section>`); 0 orphan images; 0 fake images; extension = header; 0 empty folders (`.DS_Store` ignored).
 3. CSVs: all `output` exist; each html/image listed once; `images_copied` correct; 0 missing over **all** CSVs.
 4. Noise scan over txt and html (visible text only): no watermark / `买春堂版权所有` / `www.maichun.org` garbage, spam, stamps, notices, `INCLUDEPICTURE`/`HYPERLINK`, NBSP, U+2028/9, U+FFFD, private-use, control, zero-width, `&#N;`, `[image missing]` (in txt), footers, garbage-token runs. Review hits by hand; false positives (`KJ ML`, ratings) stay.
 5. Duplicates: 0 exact; flagged near pairs listed; held groups listed.
@@ -318,6 +332,13 @@ Flat-layout naming: plain names; a clashing name gets `<zip>__` on every member 
 - **Full audit of `data.done` (2026-11-27 night, `session_tools_2026.11.27/audit_data_done.py`, read-only, ~40 s).** Global: 0 unresolved CSV `output` cells; empty folders `shlf_2026.11.27`, `141_2026.11.25/xxx/QQ`. **html** (48 sets, 10,502 pages, 92,641 images): 0 broken links, 0 remote images, 0 malformed, 0 real orphans (the 3 "orphans" are Word-derived per-report `manifest.csv` files in `Great_Redarmy` images, by design); **11 pictures with a wrong extension** (PNG/BMP/GIF saved as `.jpg`: 9 in 141 incl. the ImageShack placeholder `p056_emcafe03.jpg`, 1 FDZone `p110_4.jpg`, 1 `2010/mc`); **106 exact duplicate pages inside mc location roots** (old 11-19 consolidation copies `… (mcjt_old_02)` / `(mcjt_old_03)`, `(mcjt_胜地)`; 川渝 35, 广东 17, 上海 12, 江苏 7 …); 76 page signatures shared across sets (separate collections, by design); hk9394's CSVs cover only the 54 newer pages (by design). **images-only**: `mc_2026.11.19/images-only` 4,262 files = 4,262 rows, 0 SHA mismatch, 0 clashes, 0 fake, 0 linked by html; `141/images-only.merged` (1,542) and `141/xxx` (2,332) have no manifest, 0 fake, 0 duplicate SHA, 0 linked. **txt**: 48 files, 6,453 stories, every manifest strict-clean; noise left: 16 private-use, 1 zero-width, 7 garbage runs (mc topics, 141), 223 `[image missing]` lines (214 in gochina `txt_merged.txt`, which has no manifest). **旅行记录**: 62 clean reports + 3 stubs, 0 broken; txt/docx 0 noise.
 
 - **Audit fixes 1-5 applied (user), audit now 0 problems.** (1) 106 exact duplicate pages in mc location roots quarantined with `dedupe_page_pairs.py` (keeper: no clash suffix ` (mcjt_…)`, then the **longest** name = most complete title; a first run that preferred the shortest name was caught on `…（12P露4P` vs `…（12P露4P）`), 576 of their pictures had byte-identical copies in the kept pages, CSV rows repointed (`quar_mcdup`). (2) `session_tools_2026.11.27/fix_image_ext.py`: 11 pictures renamed to their real type (PNG/BMP/GIF data in `.jpg`), 76 references in 11 pages/CSVs repointed. (3) `session_tools_2026.11.27/clean_txt_library.py`: story-level clean + manifest recompute for 6 mc topic files, 141 and gochina `txt_merged.txt` (garbage, odd characters, 223 `[image missing]` lines); gochina got its first manifest (142 stories, boundary rule 5.3-4, every non-blank line covered); per-story CJK check, 0 failures. (4) `141_2026.11.25/images-only.merged.manifest.csv` (1,542) and `xxx.manifest.csv` (2,332), images_merged format, `original_paths` blank (not recorded anywhere). (5) empty `shlf_2026.11.27` and `141/xxx/QQ` removed. **`audit_data_done.py`** is the reusable read-only check: global (CSV cells, empty folders), html sets, every images-only folder with a manifest, raw archive links, txt manifests + noise; INFO for by-design items; exit code 1 when problems. Result: 10,396 pages, 92,062 images, 0 broken / remote / malformed / orphan / fake / duplicate / unlisted; images-only 3 folders consistent; 48 txt, 6,595 stories, 0 noise; **PROBLEMS 0**.
+
+- **2026-11-28: `2010_01+04+07.Reports/{mc,mc-topvids}` → `mc_2026.11.19/html` (user).** 217 pages (200 + 17), 1,804 images, layout B. Steps: (1) `session_tools_2026.11.28/restage_flat_set.py` turned both sets into staging roots `html/2010_mc`, `html/2010_mc-topvids` (2,025 files, 2,175 CSV cells incl. `—夜游`'s CSVs that pointed into `mc`, 1,830 links; 0 broken, 0 missing). (2) Clean-up: standard noise passes + `clean_boilerplate_new.py` (147 + 11 pages: 138 reply placeholders, 136 rating headers, 230 rating lines, 72 paid notices; **traditional `本帖最近評分記錄` added** to the rating header). (3) `new_vs_library.py` with `HFM_DATA_DONE=<mc_2026.11.19>` (compare against the target library only; matches in `旅行记录`/`141`/`FDZone` are separate collections). **173 pages quarantined as library duplicates** (exact 1, same-images 134, subset 24, 3 supersets whose extra text was title + one rating line, `上海999` (library has all 19 pictures + 7), 10 picture posts with identical pictures and title-only text; 1,622 images, all with identical copies). **12 library copies replaced by the 2010 copy** (`dedupe_page_pairs.py` remove=library, keep=moved 2010 page, then `rename_pages.py` drops the ` (2010_mc)` clash suffix): `良人回忆录十一` (+9 pictures), `新年贺礼` (+1), `古阅 扫街武陵路` (full-size pictures 390-430 KB vs 49-83 KB via `img_near.py` + `--img-map`, +1 picture; its two other low-res library copies `(mcjt_04)` and the clean-named one went too), and **9 whose library text was garbled** (`本帖隱藏漱漁e需要^復~ih瀏覽`-type mojibake, same pictures): 宿迁一晚三炮, 南京狼韩庄, 常平語已多, 京狼青岛行, 巨乳二重奏, 終於試左, 金华FL, 小狼探花 惊爆杭城, 南平情缘. (4) 35 routed with `move_pages_to_root.py` (titles read, body place words counted): 广东 19 (常平/东莞/石碣/珠海/cp; 银泉 = 常平 hotel, named with 常平/东莞 in 4 pages), 江苏军区 2, 海外 1, 山西 1, 川渝 1, **mcjt-total 11** (`xxx`, KTV ×2, 东游记, 宏X ×4, 金X山 ×2, 龙涛乐: no usable place word). (5) `distribute_leftover_rows.py`: 2,578 remaining rows (561 blank txt rows of the old `Reports.series` stories, 31 blank html/unsupported, rows of de-duplicated pages) → the root that holds their output, blank → `mcjt-total`, 6 rows of a page living in `—夜游` → `—夜游`'s CSVs; staging roots moved out (CSVs kept in scratch). 36 cells in `—夜游`'s CSVs pointing at moved `2010_mc` files repointed via the removed→kept logs (`move_pages_to_root.py` only checks CSVs under the target's grandparent). Result: 28 touched roots 0 problems (`Great_Redarmy` 3 = Word `manifest.csv`, by design), 0 unresolved CSV cells in `data.done`.
+  - Lessons: **`new_vs_library.py` misses same-name twins whose library text is garbled** (it ranks candidates by text share first): after routing, look for any library page that shares a ≥5 KB picture with each routed page (found 3 more). `img_near.py` writes `near_images.tsv` / `near_cache.json` into the **working directory** (pass `--out` into scratch). `dedupe_page_pairs.py --img-map` skips its first line as a header. The user reorganised `data.done` during the run (`mc_2026.11.19/images-only` → `images` with the CSVs adjusted; `—夜游`/`yktm` → `游客同盟_2026.11.28`, new `上海楼风_2026.11.28`, `Society_2026.11.28`).
+  - Then (user): the last 5 garbled library pages quarantined with `dedupe_page_pairs.py`, each in favour of a readable twin holding all its pictures + more: `mcjt-total` `【原创】【小狼探花】双飞制服…` → 江苏军区 `[风行+]…`, `【小狼探花】新桥法老宫…` → 松兰山海 `【联谊活动征文10号】…`; 上海 `【小狼探花】揭开上海999…` → `【天尘阅】…`; 江苏军区 `【小狼探花】颠峰对决—红楼VS世贸` → 松兰山海 `[阿亮+]…`, `(苏总阅)难忘今宵…` → `【阿龙阅】…` (43 pictures, all with identical copies). 0 pages with the `本帖隱藏漱漁` mojibake left in `data.done`; audit html/images/txt 0 problems (7 empty folders = the user's new `*_2026.11.28` sets).
+  - Open: Some 2010 pages keep rating lines the pattern does not know (`九九币`, `银币`, `論壇貢獻`, `基金`).
+
+- **2026-11-28: user re-layout of `data.done` into `<set>/{html,images,txt}`** (sets: `141_2026.11.25`, `FDZone_2026.11.27`, `gochina_2026.11.19`, `hk9394_2026.11.27`, `mc_2026.11.19`, `Society_2026.11.28`, `forum_2026.11.28` (come2meAsia), `游客同盟_2026.11.28` (—夜游 + yktm), empty `上海楼风_2026.11.28`; raw `旅行记录_2026.11.23` unchanged; `2010_01+04+07.Reports` dissolved). Rule from the user: **`<set>/images/` holds standalone images only; report pictures live under `<set>/html/`** (flat sets: `html/images/<set>/`). Only `mc_2026.11.19` still has CSVs (root summaries/manifests); every other set has none (user's re-layout). On the user's word FDZone's 3,171 report pictures were moved `FDZone_2026.11.27/images/` → `html/images/FDZone/` with `move_root_folder.py` (3,178 links in 610 pages, 0 CSV cells), empty `images/` recreated. `audit_html_links.py`: 9 html folders, 10,204 pages, 90,350 images under html, 93,734 links, 0 broken / not-image / percent / remote, 0 orphans.
 
 ## 12. Working habits that held
 

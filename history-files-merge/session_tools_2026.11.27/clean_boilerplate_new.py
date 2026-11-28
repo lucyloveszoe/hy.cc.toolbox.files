@@ -26,7 +26,7 @@ GO = '--go' in sys.argv
 DATE = r'\d{4}-\d{1,2}-\d{1,2}\s+\d{1,2}:\d{2}(?::\d{2})?'
 PAT = {
     'reply placeholder': re.compile(r'以下内容(?:需要|跟帖)回复才能看到'),
-    'rating header': re.compile(r'本帖最近评分记录'),
+    'rating header': re.compile(r'本帖最近(?:评分记录|評分記錄)'),    # traditional form added 2026-11-28 (2010 mc)
     'paid notice': re.compile(r'(?:购买主题\s*)?(?:已购买人数\s*:?\s*\d+\s*\(?记录\)?\s*)?本主题需向作者支付[^\n]{0,20}?才能浏览'
                               r'|售价\(现金\):\s*\d+\s*\S{1,3}|已购买人数:\s*\d+\s*\(记录\)|购买主题'),
     'edit stamp': re.compile(r'由\s*\S{1,30}\s*最[後后][編编][輯辑]於\s*\d{1,4}-\d{1,2}-\d{1,4}\s+\d{1,2}:\d{2}(?:\s*[AP]M)?'),

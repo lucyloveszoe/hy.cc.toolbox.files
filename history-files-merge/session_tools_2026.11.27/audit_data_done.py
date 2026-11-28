@@ -73,7 +73,9 @@ def sets():
     G = os.path.join(DD, 'gochina_2026.11.19', 'reports_merged')
     S.append(('gochina', [os.path.join(G, 'gochina')], [os.path.join(G, 'gochina', 'images')],
               os.path.join(G, 'gochina_summary.csv'), os.path.join(G, 'gochina_images_manifest.csv')))
-    G = os.path.join(DD, '141_2026.11.25', 'reports_merged')
+    G = os.path.join(DD, '141_2026.11.25', 'html')  # layout since 2026-11-28 (was reports_merged/)
+    if not os.path.isdir(G):
+        G = os.path.join(DD, '141_2026.11.25', 'reports_merged')
     S.append(('141 (141 + 141-U)', [os.path.join(G, '141'), os.path.join(G, '141-U')],
               [os.path.join(G, '141', 'images'), os.path.join(G, '141-U', 'images')],
               os.path.join(G, '141_summary.csv'), os.path.join(G, '141_images_manifest.csv')))
@@ -182,7 +184,8 @@ def audit_images_only():
         for f in fs:
             if f.lower().endswith(('.html', '.htm')):
                 linked.update(scan_page(os.path.join(dd, f))[0])
-    pairs = [('mc_2026.11.19/images-only', os.path.join(MC, 'images-only'), os.path.join(MC, 'images_merged.manifest.csv'))]
+    mcf = 'images-only' if os.path.isdir(os.path.join(MC, 'images-only')) else 'images'  # renamed back 2026-11-28
+    pairs = [(f'mc_2026.11.19/{mcf}', os.path.join(MC, mcf), os.path.join(MC, 'images_merged.manifest.csv'))]
     for dd, ds, fs in os.walk(DD):
         for f in fs:
             if f.endswith('.manifest.csv') and f != 'images_merged.manifest.csv' and os.path.isdir(os.path.join(dd, f[:-13])):
@@ -282,6 +285,8 @@ def audit_txt():
     for label, d in (('141', '141_2026.11.25'), ('FDZone', 'FDZone_2026.11.27'), ('hk9394', 'hk9394_2026.11.27'),
                      ('gochina', 'gochina_2026.11.19')):
         p = os.path.join(DD, d, 'txt_merged.txt')
+        if not os.path.exists(p):  # 141 since 2026-11-28: txt/txt_merged.txt
+            p = os.path.join(DD, d, 'txt', 'txt_merged.txt')
         if os.path.exists(p):
             pairs.append((f'{label}/txt_merged.txt', p, p[:-4] + '.manifest.csv'))
     tot = collections.Counter()
