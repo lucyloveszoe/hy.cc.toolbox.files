@@ -14,7 +14,7 @@ txt: appended to MC/txt/topics/mc_<topic>.txt (old.rstrip('\\n') + '\\n\\n' + st
 CSV rows (summary + images manifest of each source root) move to the target root's CSVs: 'page' / 'source_file'
   get the zip folder in front ('<root>/…'); 'output' is re-resolved and written relative to the target CSV; rows are
   padded to the target header (note column). A summary row goes with the page (or txt story) its output names;
-  unsupported rows (no output) go to merges/FDZone_内地; a manifest row goes with the page whose '_files' folder it came
+  unsupported rows (no output) go to $HFM_UNROUTED (default merges/FDZone_内地); a manifest row goes with the page whose '_files' folder it came
   from. Target CSVs and txt files are backed up first; target folders that do not exist yet are created with the
   source headers + 'note'. Nothing in the source roots is changed.
 """
@@ -29,13 +29,13 @@ import unicodedata
 import filecmp
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from hfm_config import DD  # noqa: E402
+from hfm_config import DD, DL  # noqa: E402
 
 MC = os.path.join(DD, 'mc_2026.11.19')
 HT = os.path.join(MC, 'html')
 TOP = os.path.join(MC, 'txt', 'topics')
 IMG_SRC = re.compile(r'(<img[^>]*?\ssrc=")([^"]+)(")', re.I)
-UNROUTED = 'merges/FDZone_内地'
+UNROUTED = os.environ.get('HFM_UNROUTED', 'merges/FDZone_内地')   # root for rows with no output (unsupported pages)
 
 
 def key(s):
@@ -66,7 +66,8 @@ def main():
     if go and os.path.exists(backup) and os.listdir(backup) and not os.path.isdir(os.path.join(backup, 'library')):
         pass
     A = [l.split('\t') for l in open(assign_p, encoding='utf-8').read().splitlines()[1:] if l.strip()]
-    roots = sorted({a[0] for a in A})
+    # every root under <src base> with a summary CSV, also roots whose pages were all removed as duplicates
+    roots = sorted({a[0] for a in A} | {d for d in os.listdir(base) if os.path.isfile(os.path.join(base, d, f'{d}_summary.csv'))})
     tdir = lambda t: os.path.join(HT, t)
     tname = lambda t: os.path.basename(t)
 
@@ -87,7 +88,7 @@ def main():
         if T not in names:
             names[T] = {key(f) for f in os.listdir(os.path.join(T, 'reports'))} if os.path.isdir(T) else set()
             idir = os.path.join(T, 'images', tname(target))
-            img_taken[T] = {f: None for f in os.listdir(idir)} if os.path.isdir(idir) else {}
+            img_taken[T] = {key(f): os.path.join(idir, f) for f in os.listdir(idir)} if os.path.isdir(idir) else {}   # case/NFC-insensitive
         nm = os.path.basename(p)
         if key(nm) in names[T]:
             st, ext = os.path.splitext(nm)
@@ -104,14 +105,13 @@ def main():
             if (q, T) not in img_new:
                 n = os.path.basename(q)
                 for cand in (n, f'{root}__{n}'):
-                    if cand not in img_taken[T]:
-                        img_taken[T][cand] = q
+                    if key(cand) not in img_taken[T]:
+                        img_taken[T][key(cand)] = q
                         img_new[(q, T)] = os.path.join(idir, cand)
                         copies.append((q, os.path.join(idir, cand)))
                         break
-                    other = img_taken[T][cand]
-                    other_path = other if other else os.path.join(idir, cand)
-                    if filecmp.cmp(q, other_path, shallow=False):
+                    other_path = img_taken[T][key(cand)]
+                    if filecmp.cmp(q, other_path, shallow=False) and os.path.basename(other_path) == cand:
                         img_new[(q, T)] = os.path.join(idir, cand)
                         break
                 else:
@@ -136,7 +136,8 @@ def main():
     for root in roots:
         R = os.path.join(base, root)
         rows = list(csv.DictReader(open(os.path.join(R, f'{root}_summary.csv'), encoding='utf-8-sig', newline='')))
-        headers.setdefault('summary', list(rows[0].keys()))
+        if rows:
+            headers.setdefault('summary', list(rows[0].keys()))
         for r in rows:
             o = r['output']
             tgt = UNROUTED
@@ -153,6 +154,8 @@ def main():
                     tgt = os.path.relpath(q, HT).split(os.sep)
                     tgt = '/'.join(tgt[:2])
                     newo = os.path.relpath(q, tdir(tgt))
+                elif os.path.isfile(q) and q.startswith(nfc(DD) + os.sep):      # duplicate of a story/page elsewhere
+                    newo = os.path.relpath(q, tdir(tgt))                             # in data.done: row -> UNROUTED
                 else:
                     problems.append(('summary output not resolved', root, o))
             stem = key(os.path.splitext(r['page'])[0])
@@ -162,7 +165,8 @@ def main():
             nr['output'] = newo
             add_summary.setdefault(tgt, []).append(nr)
         rows = list(csv.DictReader(open(os.path.join(R, f'{root}_images_manifest.csv'), encoding='utf-8-sig', newline='')))
-        headers.setdefault('manifest', list(rows[0].keys()))
+        if rows:
+            headers.setdefault('manifest', list(rows[0].keys()))
         for r in rows:
             sf = r['source_file']
             pg = sf.split('_files/')[0] if '_files/' in sf else os.path.splitext(sf)[0]
@@ -177,7 +181,7 @@ def main():
                     hits = [v for (s, T), v in img_new.items() if s == q]
                     if hits:
                         newo = os.path.relpath(hits[0], tdir(tgt))
-                    elif os.path.isfile(q) and q.startswith(nfc(MC) + os.sep):        # flat images / library
+                    elif os.path.isfile(q) and q.startswith(nfc(DL) + os.sep):        # flat images / library / images-only
                         newo = os.path.relpath(q, tdir(tgt))
                     else:
                         problems.append(('manifest output not resolved', root, o))
@@ -225,6 +229,7 @@ def main():
                     csv.writer(fh, lineterminator='\r\n').writerow(headers[hk] + (['note'] if 'note' not in headers[hk] else []))
     for s, d in copies:
         os.makedirs(os.path.dirname(d), exist_ok=True)
+        assert not os.path.exists(d), d          # never overwrite (APFS is case-insensitive)
         shutil.copy2(s, d)
     for d, text in writes:
         assert not os.path.exists(d), d

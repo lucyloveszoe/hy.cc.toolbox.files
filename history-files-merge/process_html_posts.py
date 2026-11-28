@@ -43,6 +43,8 @@ def is_ad(n: Node) -> bool:
     st = n.attrs.get("style", "").replace(" ", "").lower()
     if i.startswith("ad_") or "overture" in i:
         return True
+    if "jammer" in n.cls():  # Discuz X anti-copy garbage (<font class="jammer">, hidden by the site CSS)
+        return True
     if "display:none" in st or "visibility:hidden" in st or re.search(r"font-size:0(px|pt)?(;|$)", st):
         return True
     if re.search(r"(^|;)color:(#fff(fff)?|white)(;|$)", st):
@@ -535,6 +537,63 @@ def get_posts(root: Node, page: Path):
                            if c.tag == "li" and "name" in c.cls()), "")
             imgs = []
             posts.append({"author": author, "text": tidy(render(body, page, imgs)), "imgs": imgs})
+    if posts:
+        return posts
+    # (ag) Discuz 5.0 "t_msg" boards (2007 花王論壇 saves, Rewrap_MiscOld_II 15546/16081): no pid table ids;
+    #      one <td class=line> per post that holds <a name=pidNNN> (rating link), the subject span.bold and the body
+    for t in root.walk():
+        if t.tag == "td" and "line" in t.cls() and any(
+                c.tag == "a" and re.match(r"pid\d+$", c.attrs.get("name", "")) for c in t.walk()):
+            imgs = []
+            txt = tidy(render(t, page, imgs))
+            if txt or imgs:
+                posts.append({"author": "", "text": txt, "imgs": imgs})
+    if posts:
+        return posts
+    # (ai) newer Baidu Tieba threads (2013+ saves, 旅行记录/2018_SuZhou 睢宁吧): one <p class="d_post_content"
+    #      id="post_content_N"> per floor, without the <div class=post> wrapper adapter (ab) needs
+    for t in root.walk():
+        if "d_post_content" in t.cls() and t.attrs.get("id", "").startswith("post_content_"):
+            imgs = []
+            txt = tidy(render(t, page, imgs))
+            if txt or imgs:
+                posts.append({"author": "", "text": txt, "imgs": imgs})
+    if posts:
+        return posts
+    # (aj) Soso Wenwen (搜搜问问) Q&A pages: question and every answer are the <pre> of a <div class="pump_con">
+    for t in root.walk():
+        if t.tag == "div" and "pump_con" in t.cls():
+            for pre in (c for c in t.walk() if c.tag == "pre"):
+                imgs = []
+                txt = tidy(render(pre, page, imgs))
+                if txt:
+                    posts.append({"author": "", "text": txt, "imgs": imgs})
+    if posts:
+        return posts
+    # (ah) BMForum Datium (2005 songmen.cc 男人頌 saves, mc_2006_07_04 重慶… pages): body = <span class=javascript
+    #      id=textNNN>; author = first <b> of the member cell (<td width=20%>) in the same row; the paid-post header
+    #      "[付费 N 爽幣，已有 N 人购买]<select>…" at the top of the body is dropped
+    for t in root.walk():
+        if t.tag == "span" and "javascript" in t.cls() and re.match(r"text\d+$", t.attrs.get("id", "")):
+            for s in [x for x in t.walk() if x.tag == "select"]:
+                s.children = []
+            author = ""
+            anc = t.parent
+            while anc is not None and anc.tag != "tr":
+                anc = anc.parent
+            while anc is not None and not author:
+                if anc.tag == "tr":
+                    cell = next((c for c in anc.children if isinstance(c, Node) and c.tag == "td"
+                                 and c.attrs.get("width", "") == "20%"), None)
+                    if cell is not None:
+                        b = next((x for x in cell.walk() if x.tag == "b"), None)
+                        author = re.sub(r"\s+", " ", text_of(b)).strip() if b is not None else ""
+                anc = anc.parent
+            imgs = []
+            txt = tidy(render(t, page, imgs))
+            txt = re.sub(r"^\s*\[[^\]\n]{0,30}爽幣[^\]\n]{0,30}\]\s*", "", txt)
+            if txt or imgs:
+                posts.append({"author": author, "text": txt, "imgs": imgs})
     if posts:
         return posts
     # (af) plain article pages with no forum markup (e.g. 医院性游记.HTM): the whole <body> is one post, but only

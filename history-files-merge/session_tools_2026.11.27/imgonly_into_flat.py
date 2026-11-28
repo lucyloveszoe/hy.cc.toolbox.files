@@ -7,7 +7,9 @@ ui | in-library | in-new-report). Rules (PROCESSING_LOGIC 4.3, 5.2):
   new, not an ad banner (aspect >= 5:1)  -> copied to <flat dir>/<page title>_<original name> (board footer, 'x_' and
                                             leading 【新提醒】 dropped; clash -> '<root>__' prefix) + manifest row
   dup-in-batch / in-library / in-new-report -> the row points to the existing copy (same SHA-256)
-  ui (<= 150 px or < 8 KB) / ad banner   -> blank output + ' [output file no longer in data.done: …]'
+  ui (<= 150 px or < 8 KB) / ad banner / fake -> blank output + ' [output file no longer in data.done: …]'
+  in-library / in-new-report (plan key 'existing') -> the row points to that file
+  loose image (source_file without '_files/') -> '<parent folder or root>__<name>'
 Every <root>/<root>_images_manifest.csv row whose output is in images.only is rewritten (relative to its CSV).
 """
 import csv
@@ -69,19 +71,27 @@ def main():
             if kind == 'new' and x['w'] >= 5 * x['h']:
                 kind = 'ad'
             stats[kind] = stats.get(kind, 0) + 1
-            if kind in ('ui', 'ad'):
+            if kind in ('ui', 'ad', 'fake'):
                 r[oi] = ''
-                why = 'forum UI image (<=150 px or <8 KB), not kept' if kind == 'ui' else 'ad banner, not kept'
+                why = {'ui': 'forum UI image (<=150 px or <8 KB), not kept', 'ad': 'ad banner, not kept',
+                       'fake': 'not an image (fake file), not kept'}[kind]
                 r[st] += f' [output file no longer in data.done: {why}]'
                 continue
             if kind == 'dup-in-batch':
                 kind = 'new'          # same picture as another new file; whichever row comes first creates it
+            if kind in ('in-library', 'in-new-report'):
+                r[oi] = os.path.relpath(x['existing'], root)
+                continue
             if kind == 'new' and x['sha'] not in new_files:
-                page, _, orig = r[si].partition('_files/')
-                title = FOOTER.sub('', os.path.basename(page)).strip()
-                while title.startswith('【新提醒】'):
-                    title = title[len('【新提醒】'):].lstrip()
-                nm = f'{title}_{os.path.basename(orig)}'
+                page, sep, orig = r[si].partition('_files/')
+                if sep:
+                    title = FOOTER.sub('', os.path.basename(page)).strip()
+                    while title.startswith('【新提醒】'):
+                        title = title[len('【新提醒】'):].lstrip()
+                    nm = f'{title}_{os.path.basename(orig)}'
+                else:            # loose image of the zip (no page): '<parent folder or root>__<name>'
+                    par = os.path.basename(os.path.dirname(r[si])) or name
+                    nm = f'{par}__{os.path.basename(r[si])}'
                 if key(nm) in taken:
                     nm = f'{name}__{nm}'
                 assert key(nm) not in taken and len(nm.encode()) < 240, nm
@@ -107,7 +117,7 @@ def main():
         print('dry run; add --go')
         return
     rows, dump = load_csv(flat_man)
-    last = int(rows[-1][0])
+    last = int(rows[-1][0]) if len(rows) > 1 else 0
     for i, m in enumerate(man_rows, 1):
         rows.append([str(last + i)] + m)
     open(flat_man, 'wb').write(dump(rows))
