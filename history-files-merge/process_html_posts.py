@@ -621,6 +621,60 @@ def get_posts(root: Node, page: Path):
             posts.append({"author": author, "text": txt, "imgs": imgs})
     if posts:
         return posts
+    # (al) MyRedBook classified ads (classified.php?adid=N saves, "<name> <phone> <city> Escort|AAMP.htm"):
+    #      photos = <td class=classcat5> (img.mypic), text = the next <td class=classcat6> (title, by-line, fields,
+    #      description); the sidebar "Ad of the Day" pictures are outside both cells
+    for t in root.walk():
+        if t.tag == "td" and "classcat5" in t.cls():
+            sibs = [c for c in (t.parent.children if t.parent else []) if isinstance(c, Node) and c.tag == "td"]
+            txtcell = next((c for c in sibs if "classcat6" in c.cls()), None)
+            body = Node("div")
+            body.children = ([txtcell] if txtcell is not None else []) + [t]
+            by = next((x for x in (txtcell.walk() if txtcell is not None else []) if x.tag == "strong"), None)
+            for tr in list(txtcell.walk() if txtcell is not None else []):  # field rows: label | : | value
+                tds = [c for c in tr.children if isinstance(c, Node) and c.tag == "td"] if tr.tag == "tr" else []
+                if len(tds) == 3 and text_of(tds[1]).replace("\xa0", "").strip() == ":":
+                    lab = re.sub(r"\s+", " ", text_of(tds[0])).strip()
+                    val = re.sub(r"\s+", " ", text_of(tds[2]).replace("\xa0", " ")).strip()
+                    long = len(val) > 80 or any(x.tag == "br" for x in tds[2].walk())
+                    tr.children = [] if not val else [f"{lab}:\n", tds[2]] if long else [f"{lab}: {val}"]
+            imgs = []
+            txt = tidy(render(body, page, imgs))
+            if txt or imgs:
+                posts.append({"author": re.sub(r"\s+", " ", text_of(by)).strip() if by is not None else "",
+                              "text": txt, "imgs": imgs})
+            break
+    if posts:
+        return posts
+    # (am) MyRedBook photo pages ("<name> <adid> Photos …"): fields = <div class=myshow> (its "Links:" line of
+    #      tineye/google search links dropped), photos = every img.mypic of the page
+    show = next((t for t in root.walk() if t.tag == "div" and "myshow" in t.cls()), None)
+    if show is not None:
+        body = Node("div")
+        for li in show.walk():
+            if li.tag == "li" and "Links:" in text_of(li):
+                li.children = []
+        body.children = [show] + [t for t in root.walk() if t.tag == "img" and "mypic" in t.cls()]
+        imgs = []
+        txt = tidy(render(body, page, imgs))
+        if txt or imgs:
+            return [{"author": "", "text": txt, "imgs": imgs}]
+    # (an) backpage.com ads: <div id=postingTitle> (h1), div.adInfo (date), ul#viewAdPhotoLayout (photos),
+    #      div.postingBody, p.metaInfoDisplay (age) inside div.mainBody
+    mb = next((t for t in root.walk() if t.tag == "div" and "mainBody" in t.cls()), None)
+    if mb is not None and any(t.tag == "div" and "postingBody" in t.cls() for t in mb.walk()):
+        keep = [t for t in mb.walk() if t.attrs.get("id") in ("postingTitle", "viewAdPhotoLayout")
+                or any(k in t.cls() for k in ("adInfo", "postingBody", "metaInfoDisplay"))]
+        for k in keep:
+            for a in k.walk():
+                if a.tag == "a" and "Report Ad" in text_of(a):
+                    a.children = []
+        body = Node("div")
+        body.children = keep
+        imgs = []
+        txt = tidy(render(body, page, imgs))
+        if txt or imgs:
+            return [{"author": "", "text": txt, "imgs": imgs}]
     # (af) plain article pages with no forum markup (e.g. 医院性游记.HTM): the whole <body> is one post, but only
     #      when it holds >= 1500 CJK characters (stubs, error pages and Q&A snippets stay unsupported)
     body = next((t for t in root.walk() if t.tag == "body"), None)
