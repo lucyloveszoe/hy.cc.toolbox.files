@@ -255,6 +255,7 @@ Name clashes in a flat set: plain names; a clashing name gets `<zip>__` on every
 | existing sets → routed library | `restage_flat_set.py` (layout-B set → flat library root, every crossing CSV/html path fixed), `rename_pages.py` (rename pages + repoint), `distribute_leftover_rows.py` (empty a staging root's CSVs into the roots that hold their outputs; blank rows → unrouted root) | `.28` |
 | full read-only audit of data.done | `audit_data_done.py [DD]` (exit 1 on problems) | `.27` |
 | html links / orphan images in the `<set>/{html,images,txt}` layout | `audit_html_links.py [DD]` (read-only: every `<img src>` under `<set>/html` resolves to a real image, every image under `<set>/html` is linked; exit 1 on problems; 2026-11-28: 9 html folders, 10,204 pages, 87,179 images, 93,734 links, 0 problems) | `.28` |
+| merge one folder into another (re-layout) | `merge_folder_into.py <src> <dst> [--file <path> <new dir>]... [--go --backup-dir D]` (recursive merge, aborts on any case-insensitive name clash, fixes every CSV `output` / html `src|href` crossing the moved files) | `.28` |
 | fixes found by the audit | `fix_image_ext.py [DD] [--go --backup-dir D]`, `clean_txt_library.py <txt…> [--go --backup-dir D]` | `.27` |
 | txt/docx noise clean-up in a raw archive | `clean_text_docs.py <archive> [--go --backup-dir D]` | `.27` |
 | clean saved pages in a raw archive, in place | `optimize_pages_in_place.py <archive> <processed base> <folders> [--go --quarantine Q]` | `.27` |
@@ -339,6 +340,8 @@ Name clashes in a flat set: plain names; a clashing name gets `<zip>__` on every
   - Open: Some 2010 pages keep rating lines the pattern does not know (`九九币`, `银币`, `論壇貢獻`, `基金`).
 
 - **2026-11-28: user re-layout of `data.done` into `<set>/{html,images,txt}`** (sets: `141_2026.11.25`, `FDZone_2026.11.27`, `gochina_2026.11.19`, `hk9394_2026.11.27`, `mc_2026.11.19`, `Society_2026.11.28`, `forum_2026.11.28` (come2meAsia), `游客同盟_2026.11.28` (—夜游 + yktm), empty `上海楼风_2026.11.28`; raw `旅行记录_2026.11.23` unchanged; `2010_01+04+07.Reports` dissolved). Rule from the user: **`<set>/images/` holds standalone images only; report pictures live under `<set>/html/`** (flat sets: `html/images/<set>/`). Only `mc_2026.11.19` still has CSVs (root summaries/manifests); every other set has none (user's re-layout). On the user's word FDZone's 3,171 report pictures were moved `FDZone_2026.11.27/images/` → `html/images/FDZone/` with `move_root_folder.py` (3,178 links in 610 pages, 0 CSV cells), empty `images/` recreated. `audit_html_links.py`: 9 html folders, 10,204 pages, 90,350 images under html, 93,734 links, 0 broken / not-image / percent / remote, 0 orphans.
+
+- **End of 2026-11-28 session:** all 18 quarantines (2010 duplicates, replaced library copies, routing sources, garbled pages; ~210 MB) deleted on the user's word after a fresh check (1,882 pictures with an identical copy in `data.done`, 9 low-res `古阅` pictures with their approved full-size version, 236 pages with their kept page). Scratchpad keeps only `bk_*` backups and plans (lost on reboot). Committed `ae201f5` on a branch, fast-forwarded into `main`, branch deleted, pushed to `origin/main`. `audit_html_links.py` 0 problems; nothing pending. Next session: re-list `data.done` and run `audit_html_links.py` first.
 
 ## 12. Working habits that held
 
